@@ -1,0 +1,20 @@
+---
+# Source: ghost/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ghost
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/managed-by: Sovereign
+    app.kubernetes.io/name: ghost
+    app.kubernetes.io/version: 5.118.1
+    app.kubernetes.io/component: ghost
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ghost
+      app.kubernetes.io/name: ghost
+      app.kubernetes.io/component: ghost

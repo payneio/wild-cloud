@@ -1,0 +1,69 @@
+#!/bin/bash
+# chart-diff
+# Shows differences between current and new chart version using gomplate for values
+# Usage: chart-diff CHART [RELEASE_NAME] [NAMESPACE]
+
+set -e
+
+# Get script directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Load environment variables if needed
+if [[ -z "$ENVIRONMENT" ]]; then
+  if [[ -f "${REPO_ROOT}/load-env.sh" ]]; then
+    source "${REPO_ROOT}/load-env.sh"
+  fi
+fi
+
+# Print usage
+if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+  echo "Usage: $(basename $0) CHART [RELEASE_NAME] [NAMESPACE]"
+  echo ""
+  echo "Shows differences between current and new chart version."
+  echo ""
+  echo "  CHART        Chart name in charts/ directory"
+  echo "  RELEASE_NAME Release name (defaults to CHART)"
+  echo "  NAMESPACE    Namespace (defaults to RELEASE_NAME)"
+  echo ""
+  echo ""
+  exit 1
+fi
+
+CHART="$1"
+RELEASE_NAME="${2:-$CHART}"
+NAMESPACE="${3:-$RELEASE_NAME}"
+
+# We use kubectl diff now, no need for helm-diff plugin
+
+# Check if chart exists
+CHART_PATH="${REPO_ROOT}/charts/${CHART}"
+if [[ ! -d "$CHART_PATH" ]]; then
+  echo "Error: Chart not found at ${CHART_PATH}"
+  exit 1
+fi
+
+# We'll use chart-template for values, so we don't need to check here
+
+# Show what would change
+echo "==> Showing differences for chart: $CHART"
+echo "==> Release name: $RELEASE_NAME"
+echo "==> Namespace: $NAMESPACE"
+echo ""
+
+# Create temporary files for the template output
+TEMP_OUTPUT=$(mktemp)
+CLEAN_OUTPUT=$(mktemp)
+
+# Generate the template and filter out the header text
+"${SCRIPT_DIR}/chart-template" "$CHART" "$RELEASE_NAME" "$NAMESPACE" > "$TEMP_OUTPUT"
+sed -n '/^---$/,$p' "$TEMP_OUTPUT" > "$CLEAN_OUTPUT"
+
+# Use kubectl diff to show actual differences between current state and template
+echo "==> Showing differences between current cluster state and template for $CHART:"
+echo "==> (+ indicates additions, - indicates removals)"
+echo ""
+kubectl diff -f "$CLEAN_OUTPUT" || true
+
+# Clean up
+rm "$TEMP_OUTPUT" "$CLEAN_OUTPUT"

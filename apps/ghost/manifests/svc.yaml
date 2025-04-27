@@ -1,0 +1,26 @@
+---
+# Source: ghost/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/managed-by: Sovereign
+    app.kubernetes.io/name: ghost
+    app.kubernetes.io/version: 5.118.1
+    app.kubernetes.io/component: ghost
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: "Cluster"
+  sessionAffinity: None
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: http
+  selector:
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/name: ghost
+    app.kubernetes.io/component: ghost

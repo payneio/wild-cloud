@@ -1,0 +1,102 @@
+#!/bin/bash
+set -e
+
+# Navigate to script directory
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+cd "$SCRIPT_DIR"
+
+# Source environment variables
+if [[ -f "../load-env.sh" ]]; then
+  source ../load-env.sh
+fi
+
+echo "Setting up cert-manager..."
+
+# Create cert-manager namespace
+kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+
+# Install cert-manager using the official installation method 
+# This installs CRDs, controllers, and webhook components
+echo "Installing cert-manager components..."
+# Using stable URL for cert-manager installation
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.1/cert-manager.yaml || \
+  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.13.1/cert-manager.yaml
+
+# Wait for cert-manager to be ready
+echo "Waiting for cert-manager to be ready..."
+kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=120s
+kubectl wait --for=condition=Available deployment/cert-manager-cainjector -n cert-manager --timeout=120s
+kubectl wait --for=condition=Available deployment/cert-manager-webhook -n cert-manager --timeout=120s
+
+# Add delay to allow webhook to be fully ready
+echo "Waiting additional time for cert-manager webhook to be fully operational..."
+sleep 30
+
+# Setup Cloudflare API token for DNS01 challenges
+if [[ -n "${CLOUDFLARE_API_TOKEN}" ]]; then
+  echo "Creating Cloudflare API token secret in cert-manager namespace..."
+  kubectl create secret generic cloudflare-api-token \
+    --namespace cert-manager \
+    --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  
+  # Create internal namespace if it doesn't exist
+  echo "Creating internal namespace if it doesn't exist..."
+  kubectl create namespace internal --dry-run=client -o yaml | kubectl apply -f -
+  
+  # Create the same secret in the internal namespace
+  echo "Creating Cloudflare API token secret in internal namespace..."
+  kubectl create secret generic cloudflare-api-token \
+    --namespace internal \
+    --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+else
+  echo "Warning: CLOUDFLARE_API_TOKEN not set. DNS01 challenges will not work."
+fi
+
+# Apply Let's Encrypt issuers
+echo "Creating Let's Encrypt issuers..."
+cat ${SCRIPT_DIR}/cert-manager/letsencrypt-staging-dns01.yaml | envsubst | kubectl apply -f -
+cat ${SCRIPT_DIR}/cert-manager/letsencrypt-prod-dns01.yaml | envsubst | kubectl apply -f -
+
+# Wait for issuers to be ready
+echo "Waiting for Let's Encrypt issuers to be ready..."
+sleep 10
+
+# Apply wildcard certificates
+echo "Creating wildcard certificates..."
+cat ${SCRIPT_DIR}/cert-manager/internal-wildcard-certificate.yaml | envsubst | kubectl apply -f -
+cat ${SCRIPT_DIR}/cert-manager/wildcard-certificate.yaml | envsubst | kubectl apply -f -
+echo "Wildcard certificate creation initiated. This may take some time to complete depending on DNS propagation."
+
+# Wait for the certificates to be issued (with a timeout)
+echo "Waiting for wildcard certificates to be ready (this may take several minutes)..."
+kubectl wait --for=condition=Ready certificate wildcard-soverign-cloud -n default --timeout=300s || true
+kubectl wait --for=condition=Ready certificate wildcard-internal-sovereign-cloud -n internal --timeout=300s || true
+
+# Copy the internal wildcard certificate to example-admin namespace
+echo "Copying internal wildcard certificate to example-admin namespace..."
+if kubectl get namespace example-admin &>/dev/null; then
+  # Create example-admin namespace if it doesn't exist
+  kubectl create namespace example-admin --dry-run=client -o yaml | kubectl apply -f -
+  
+  # Get the internal wildcard certificate secret and copy it to example-admin namespace
+  if kubectl get secret wildcard-internal-sovereign-cloud-tls -n internal &>/dev/null; then
+    kubectl get secret wildcard-internal-sovereign-cloud-tls -n internal -o yaml | \
+      sed 's/namespace: internal/namespace: example-admin/' | \
+      kubectl apply -f -
+    echo "Certificate copied to example-admin namespace"
+  else
+    echo "Internal wildcard certificate not ready yet. Please manually copy it later with:"
+    echo "  kubectl get secret wildcard-internal-sovereign-cloud-tls -n internal -o yaml | \\"
+    echo "    sed 's/namespace: internal/namespace: example-admin/' | \\"
+    echo "    kubectl apply -f -"
+  fi
+fi
+
+echo "cert-manager setup complete!"
+echo ""
+echo "To verify the installation:"
+echo "  kubectl get pods -n cert-manager"
+echo "  kubectl get clusterissuers"

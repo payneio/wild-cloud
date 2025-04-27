@@ -1,0 +1,23 @@
+---
+# Source: ghost/charts/mysql/templates/primary/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ghost-mysql
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/version: 8.4.5
+    helm.sh/chart: mysql-12.3.4
+    app.kubernetes.io/part-of: mysql
+    app.kubernetes.io/component: primary
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ghost
+      app.kubernetes.io/name: mysql
+      app.kubernetes.io/part-of: mysql
+      app.kubernetes.io/component: primary

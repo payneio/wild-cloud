@@ -1,0 +1,186 @@
+#!/bin/bash
+set -e
+
+# Source environment variables for defaults and domain settings
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/../load-env.sh" ]; then
+  source "$SCRIPT_DIR/../load-env.sh"
+fi
+
+# Default values
+SERVICE_TYPE=""
+SERVICE_NAME=""
+NAMESPACE=""
+IMAGE=""
+PORT=""
+SERVICE_DOMAIN=""
+OUTPUT_DIR=""
+
+function show_help {
+  echo "Usage: $0 --type [public|internal|database|microservice] --name SERVICE_NAME [options]"
+  echo ""
+  echo "Required arguments:"
+  echo "  --type TYPE            Service type (public, internal, database, or microservice)"
+  echo "  --name NAME            Service name"
+  echo ""
+  echo "Optional arguments:"
+  echo "  --namespace NAMESPACE  Kubernetes namespace (defaults to service name)"
+  echo "  --image IMAGE          Container image (defaults to nginx:latest for most types)"
+  echo "  --port PORT            Container port (defaults to 80)"
+  echo "  --domain DOMAIN        Custom domain (defaults to TYPE-specific domain)"
+  echo "  --output DIR           Output directory (defaults to services/NAME)"
+  echo "  --help                 Show this help message"
+  echo ""
+  echo "Examples:"
+  echo "  $0 --type public --name blog"
+  echo "  $0 --type internal --name admin --image my-admin:v1 --port 8080"
+  echo "  $0 --type database --name mysql --image mysql:8.0 --port 3306"
+  echo "  $0 --type microservice --name auth --image auth-service:v1 --port 9000"
+  exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+    --type)
+      SERVICE_TYPE="$2"
+      shift 2
+      ;;
+    --name)
+      SERVICE_NAME="$2"
+      shift 2
+      ;;
+    --namespace)
+      NAMESPACE="$2"
+      shift 2
+      ;;
+    --image)
+      IMAGE="$2"
+      shift 2
+      ;;
+    --port)
+      PORT="$2"
+      shift 2
+      ;;
+    --domain)
+      SERVICE_DOMAIN="$2"
+      shift 2
+      ;;
+    --output)
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    --help)
+      show_help
+      ;;
+    *)
+      echo "Unknown option: $1"
+      show_help
+      ;;
+  esac
+done
+
+# Validate required parameters
+if [[ -z "$SERVICE_TYPE" ]]; then
+  echo "Error: Service type is required"
+  show_help
+fi
+
+if [[ -z "$SERVICE_NAME" ]]; then
+  echo "Error: Service name is required"
+  show_help
+fi
+
+# Validate service type
+if [[ "$SERVICE_TYPE" != "public" && "$SERVICE_TYPE" != "internal" && "$SERVICE_TYPE" != "database" && "$SERVICE_TYPE" != "microservice" ]]; then
+  echo "Error: Invalid service type. Must be public, internal, database, or microservice."
+  show_help
+fi
+
+# Set defaults
+if [[ -z "$NAMESPACE" ]]; then
+  NAMESPACE="$SERVICE_NAME"
+fi
+
+if [[ -z "$IMAGE" ]]; then
+  if [[ "$SERVICE_TYPE" == "database" ]]; then
+    IMAGE="mariadb:10.6"
+  else
+    IMAGE="nginx:latest"
+  fi
+fi
+
+if [[ -z "$PORT" ]]; then
+  if [[ "$SERVICE_TYPE" == "database" ]]; then
+    PORT="3306"
+  else
+    PORT="80"
+  fi
+fi
+
+if [[ -z "$SERVICE_DOMAIN" ]]; then
+  if [[ "$SERVICE_TYPE" == "public" ]]; then
+    SERVICE_DOMAIN="\${SERVICE_NAME}.\${DOMAIN}"
+  elif [[ "$SERVICE_TYPE" == "internal" ]]; then
+    SERVICE_DOMAIN="\${SERVICE_NAME}.internal.\${DOMAIN}"
+  elif [[ "$SERVICE_TYPE" == "microservice" ]]; then
+    SERVICE_DOMAIN="\${SERVICE_NAME}.svc.\${DOMAIN}"
+  else
+    SERVICE_DOMAIN="\${SERVICE_NAME}.db.\${DOMAIN}"
+  fi
+fi
+
+# Set default output directory if not provided
+if [[ -z "$OUTPUT_DIR" ]]; then
+  OUTPUT_DIR="$SCRIPT_DIR/../services/$SERVICE_NAME"
+fi
+
+echo "Generating $SERVICE_TYPE service configuration for: $SERVICE_NAME"
+echo "Namespace: $NAMESPACE"
+echo "Image: $IMAGE"
+echo "Port: $PORT"
+echo "Domain Template: $SERVICE_DOMAIN"
+echo "Output Directory: $OUTPUT_DIR"
+echo
+
+# Get the appropriate template
+if [[ "$SERVICE_TYPE" == "microservice" ]]; then
+  TEMPLATE_FILE="$SCRIPT_DIR/../services/templates/microservice/service.yaml"
+else
+  TEMPLATE_FILE="$SCRIPT_DIR/../services/templates/${SERVICE_TYPE}-service/service.yaml"
+fi
+
+if [[ ! -f "$TEMPLATE_FILE" ]]; then
+  echo "Error: Template file not found: $TEMPLATE_FILE"
+  exit 1
+fi
+
+# Create output directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Create the service YAML
+echo "Creating service configuration..."
+
+# Prepare variables for substitution
+export SERVICE_NAME="$SERVICE_NAME"
+export SERVICE_NAMESPACE="$NAMESPACE"
+export SERVICE_IMAGE="\"$IMAGE\""
+export SERVICE_PORT="$PORT"
+export SERVICE_DOMAIN="$SERVICE_DOMAIN"
+
+# Process the template with variable substitution
+mkdir -p "$OUTPUT_DIR"
+
+# Define which variables to replace - only those from command arguments
+VARS_TO_REPLACE='${SERVICE_NAME},${SERVICE_NAMESPACE},${SERVICE_IMAGE},${SERVICE_PORT},${SERVICE_DOMAIN}'
+
+# Process the template, only substituting the variables from arguments
+cat "$TEMPLATE_FILE" | envsubst "$VARS_TO_REPLACE" > "$OUTPUT_DIR/service.yaml"
+
+echo "✅ Service configuration generated successfully!"
+echo "Configuration file: $OUTPUT_DIR/service.yaml"
+echo ""
+echo "To deploy this service configuration:"
+echo "  ./bin/deploy-service $SERVICE_NAME"
+echo ""
+echo "To customize further, edit the generated file before deployment."

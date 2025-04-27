@@ -1,0 +1,27 @@
+---
+# Source: ghost/charts/mysql/templates/primary/svc-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost-mysql-headless
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/version: 8.4.5
+    helm.sh/chart: mysql-12.3.4
+    app.kubernetes.io/part-of: mysql
+    app.kubernetes.io/component: primary
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+  selector:
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/component: primary

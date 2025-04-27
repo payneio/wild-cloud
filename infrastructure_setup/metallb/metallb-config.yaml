@@ -1,0 +1,21 @@
+---
+# Define IP address pool for MetalLB
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: production
+  namespace: metallb-system
+spec:
+  addresses:
+  - ${CLUSTER_LOAD_BALANCER_RANGE}
+
+---
+# Define Layer 2 advertisement for the IP pool
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - production

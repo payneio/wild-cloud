@@ -1,0 +1,108 @@
+#!/bin/bash
+# chart-install
+# Installs a Helm chart using gomplate for templating values
+# Usage: chart-install CHART [RELEASE_NAME] [NAMESPACE] [--dry-run]
+
+set -e
+
+# Get script directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Load environment variables if needed
+if [[ -z "$ENVIRONMENT" ]]; then
+  if [[ -f "${REPO_ROOT}/load-env.sh" ]]; then
+    source "${REPO_ROOT}/load-env.sh"
+  fi
+fi
+
+# Print usage
+if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+  echo "Usage: $(basename $0) CHART [RELEASE_NAME] [NAMESPACE] [--dry-run]"
+  echo ""
+  echo "Install or upgrade a chart with environment variable substitution."
+  echo ""
+  echo "  CHART        Chart name in charts/ directory"
+  echo "  RELEASE_NAME Release name (defaults to CHART)"
+  echo "  NAMESPACE    Namespace (defaults to RELEASE_NAME)"
+  echo ""
+  echo "Options:"
+  echo "  --dry-run    Show what would be installed without actually installing"
+  echo ""
+  exit 1
+fi
+
+# Check for dry run flag
+DRY_RUN=false
+for arg in "$@"; do
+  if [ "$arg" == "--dry-run" ]; then
+    DRY_RUN=true
+  fi
+done
+
+CHART="$1"
+RELEASE_NAME="${2:-$CHART}"
+NAMESPACE="${3:-$RELEASE_NAME}"
+
+# Check if chart exists
+CHART_PATH="${REPO_ROOT}/charts/${CHART}"
+if [[ ! -d "$CHART_PATH" ]]; then
+  echo "Error: Chart not found at ${CHART_PATH}"
+  exit 1
+fi
+
+# Update chart dependencies if Chart.yaml has dependencies section
+if [ -f "${CHART_PATH}/Chart.yaml" ] && grep -q "dependencies:" "${CHART_PATH}/Chart.yaml"; then
+  echo "Updating dependencies for chart: $CHART"
+  helm dependency update "$CHART_PATH"
+fi
+
+# We'll use chart-template for values, so we don't need to check here
+
+# Create namespace (unless --dry-run was specified)
+if [ "$DRY_RUN" == "false" ]; then
+  kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+fi
+
+# Run the helm command
+echo "Installing chart: $CHART as $RELEASE_NAME in namespace $NAMESPACE"
+
+if [ "$DRY_RUN" == "true" ]; then
+  echo "==> DRY RUN: Would install the following resources:"
+  "${SCRIPT_DIR}/chart-template" "$CHART" "$RELEASE_NAME" "$NAMESPACE"
+  exit 0
+fi
+
+# For actual installation, create a temporary file to capture template output
+TEMP_OUTPUT=$(mktemp)
+"${SCRIPT_DIR}/chart-template" "$CHART" "$RELEASE_NAME" "$NAMESPACE" > "$TEMP_OUTPUT"
+
+# Apply the template to the cluster
+kubectl apply -f "$TEMP_OUTPUT"
+
+# Clean up
+rm "$TEMP_OUTPUT"
+
+# Print helpful information (if not dry run)
+if [ "$DRY_RUN" == "false" ]; then
+  echo ""
+  echo "✅ Successfully installed/upgraded $RELEASE_NAME in namespace $NAMESPACE"
+  echo ""
+  echo "To check the status:"
+  echo "  kubectl get all -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME"
+  echo ""
+fi
+
+# Check for post-install instructions (only if not dry run)
+if [ "$DRY_RUN" == "false" ]; then
+  INSTRUCTIONS_FILE="${CHART_PATH}/POST_INSTALL_NOTES.txt"
+  if [[ -f "$INSTRUCTIONS_FILE" ]]; then
+    # Process environment variables in instructions (using the same environment)
+    echo ""
+    echo "Post-installation instructions:"
+    echo "==============================="
+    gomplate -f "$INSTRUCTIONS_FILE"
+  else
+    echo "For more information, see the documentation in ${CHART_PATH}/README.md"
+  fi
+fi

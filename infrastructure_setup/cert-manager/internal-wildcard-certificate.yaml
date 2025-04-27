@@ -1,0 +1,19 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-internal-sovereign-cloud
+  namespace: internal
+spec:
+  secretName: wildcard-internal-sovereign-cloud-tls
+  dnsNames:
+  - "*.internal.${DOMAIN}"
+  - "internal.${DOMAIN}"
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  privateKey:
+    algorithm: RSA
+    size: 2048

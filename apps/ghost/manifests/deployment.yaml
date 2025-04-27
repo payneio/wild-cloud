@@ -1,0 +1,249 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: ghost
+  namespace: ghost
+  uid: d01c62ff-68a6-456a-a630-77c730bffc9b
+  resourceVersion: '2772014'
+  generation: 1
+  creationTimestamp: '2025-04-27T02:01:30Z'
+  labels:
+    app.kubernetes.io/component: ghost
+    app.kubernetes.io/instance: ghost
+    app.kubernetes.io/managed-by: Sovereign
+    app.kubernetes.io/name: ghost
+    app.kubernetes.io/version: 5.118.1
+  annotations:
+    deployment.kubernetes.io/revision: '1'
+    meta.helm.sh/release-name: ghost
+    meta.helm.sh/release-namespace: ghost  
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ghost
+      app.kubernetes.io/name: ghost
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/component: ghost
+        app.kubernetes.io/instance: ghost
+        app.kubernetes.io/managed-by: Sovereign
+        app.kubernetes.io/name: ghost
+        app.kubernetes.io/version: 5.118.1
+      annotations:
+        checksum/secrets: b1cef92e7f73650dddfb455a7519d7b2bcf051c9cb9136b34f504ee120c63ae6
+    spec:
+      volumes:
+        - name: empty-dir
+          emptyDir: {}
+        - name: ghost-secrets
+          projected:
+            sources:
+              - secret:
+                  name: ghost-mysql
+              - secret:
+                  name: ghost
+            defaultMode: 420
+        - name: ghost-data
+          persistentVolumeClaim:
+            claimName: ghost
+      initContainers:
+        - name: prepare-base-dir
+          image: docker.io/bitnami/ghost:5.118.1-debian-12-r0
+          command:
+            - /bin/bash
+          args:
+            - '-ec'
+            - >
+              #!/bin/bash
+
+
+              . /opt/bitnami/scripts/liblog.sh
+
+
+              info "Copying base dir to empty dir"
+
+              # In order to not break the application functionality (such as
+              upgrades or plugins) we need
+
+              # to make the base directory writable, so we need to copy it to an
+              empty dir volume
+
+              cp -r --preserve=mode /opt/bitnami/ghost /emptydir/app-base-dir
+          resources:
+            limits:
+              cpu: 375m
+              ephemeral-storage: 2Gi
+              memory: 384Mi
+            requests:
+              cpu: 250m
+              ephemeral-storage: 50Mi
+              memory: 256Mi
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /emptydir
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            seLinuxOptions: {}
+            runAsUser: 1001
+            runAsGroup: 1001
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+      containers:
+        - name: ghost
+          image: docker.io/bitnami/ghost:5.118.1-debian-12-r0
+          ports:
+            - name: https
+              containerPort: 2368
+              protocol: TCP
+          env:
+            - name: BITNAMI_DEBUG
+              value: 'false'
+            - name: ALLOW_EMPTY_PASSWORD
+              value: 'yes'
+            - name: GHOST_DATABASE_HOST
+              value: ghost-mysql
+            - name: GHOST_DATABASE_PORT_NUMBER
+              value: '3306'
+            - name: GHOST_DATABASE_NAME
+              value: ghost
+            - name: GHOST_DATABASE_USER
+              value: ghost
+            - name: GHOST_DATABASE_PASSWORD_FILE
+              value: /opt/bitnami/ghost/secrets/mysql-password
+            - name: GHOST_HOST
+              value: blog.cloud.payne.io/
+            - name: GHOST_PORT_NUMBER
+              value: '2368'
+            - name: GHOST_USERNAME
+              value: admin
+            - name: GHOST_PASSWORD_FILE
+              value: /opt/bitnami/ghost/secrets/ghost-password
+            - name: GHOST_EMAIL
+              value: paul@payne.io
+            - name: GHOST_BLOG_TITLE
+              value: User's Blog
+            - name: GHOST_ENABLE_HTTPS
+              value: 'yes'
+            - name: GHOST_EXTERNAL_HTTP_PORT_NUMBER
+              value: '80'
+            - name: GHOST_EXTERNAL_HTTPS_PORT_NUMBER
+              value: '443'
+            - name: GHOST_SKIP_BOOTSTRAP
+              value: 'no'
+          resources:
+            limits:
+              cpu: 375m
+              ephemeral-storage: 2Gi
+              memory: 384Mi
+            requests:
+              cpu: 250m
+              ephemeral-storage: 50Mi
+              memory: 256Mi
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /opt/bitnami/ghost
+              subPath: app-base-dir
+            - name: empty-dir
+              mountPath: /.ghost
+              subPath: app-tmp-dir
+            - name: empty-dir
+              mountPath: /tmp
+              subPath: tmp-dir
+            - name: ghost-data
+              mountPath: /bitnami/ghost
+            - name: ghost-secrets
+              mountPath: /opt/bitnami/ghost/secrets
+          livenessProbe:
+            tcpSocket:
+              port: 2368
+            initialDelaySeconds: 120
+            timeoutSeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /
+              port: https
+              scheme: HTTP
+              httpHeaders:
+                - name: x-forwarded-proto
+                  value: https
+            initialDelaySeconds: 30
+            timeoutSeconds: 3
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            seLinuxOptions: {}
+            runAsUser: 1001
+            runAsGroup: 1001
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      serviceAccountName: ghost
+      serviceAccount: ghost
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: Always
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: ghost
+                    app.kubernetes.io/name: ghost
+                topologyKey: kubernetes.io/hostname
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+status:
+  observedGeneration: 1
+  replicas: 1
+  updatedReplicas: 1
+  unavailableReplicas: 1
+  conditions:
+    - type: Available
+      status: 'False'
+      lastUpdateTime: '2025-04-27T02:01:30Z'
+      lastTransitionTime: '2025-04-27T02:01:30Z'
+      reason: MinimumReplicasUnavailable
+      message: Deployment does not have minimum availability.
+    - type: Progressing
+      status: 'False'
+      lastUpdateTime: '2025-04-27T02:11:32Z'
+      lastTransitionTime: '2025-04-27T02:11:32Z'
+      reason: ProgressDeadlineExceeded
+      message: ReplicaSet "ghost-586bbc6ddd" has timed out progressing.
