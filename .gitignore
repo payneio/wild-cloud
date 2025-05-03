@@ -5,3 +5,4 @@ backup
 services
 charts
 CLAUDE.md
+.bots/*/sessions
