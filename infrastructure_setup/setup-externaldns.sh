@@ -36,18 +36,6 @@ cat ${SCRIPT_DIR}/externaldns/externaldns.yaml | envsubst | kubectl apply -f -
 echo "Waiting for ExternalDNS to be ready..."
 kubectl rollout status deployment/external-dns -n externaldns --timeout=60s
 
-# Deploy test services if --test flag is provided
-if [[ "$1" == "--test" ]]; then
-  echo "Deploying test services to verify ExternalDNS..."
-  cat ${SCRIPT_DIR}/externaldns/test-service.yaml | envsubst | kubectl apply -f -
-  cat ${SCRIPT_DIR}/externaldns/test-cname-service.yaml | envsubst | kubectl apply -f -
-  
-  echo "Test services deployed at:"
-  echo "- test.${DOMAIN}"
-  echo "- test-cname.${DOMAIN} (CNAME record)"
-  echo "DNS records should be automatically created in Cloudflare within a few minutes."
-fi
-
 echo "ExternalDNS setup complete!"
 echo ""
 echo "To verify the installation:"

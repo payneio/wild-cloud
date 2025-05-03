@@ -39,23 +39,11 @@ if [[ -n "${CLOUDFLARE_API_TOKEN}" ]]; then
   kubectl create secret generic cloudflare-api-token \
     --namespace cert-manager \
     --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  
-  # Create internal namespace if it doesn't exist
-  echo "Creating internal namespace if it doesn't exist..."
-  kubectl create namespace internal --dry-run=client -o yaml | kubectl apply -f -
-  
-  # Create the same secret in the internal namespace
-  echo "Creating Cloudflare API token secret in internal namespace..."
-  kubectl create secret generic cloudflare-api-token \
-    --namespace internal \
-    --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \
-    --dry-run=client -o yaml | kubectl apply -f -
+    --dry-run=client -o yaml | kubectl apply -f -  
 else
   echo "Warning: CLOUDFLARE_API_TOKEN not set. DNS01 challenges will not work."
 fi
 
-# Apply Let's Encrypt issuers
 echo "Creating Let's Encrypt issuers..."
 cat ${SCRIPT_DIR}/cert-manager/letsencrypt-staging-dns01.yaml | envsubst | kubectl apply -f -
 cat ${SCRIPT_DIR}/cert-manager/letsencrypt-prod-dns01.yaml | envsubst | kubectl apply -f -
@@ -72,26 +60,22 @@ echo "Wildcard certificate creation initiated. This may take some time to comple
 
 # Wait for the certificates to be issued (with a timeout)
 echo "Waiting for wildcard certificates to be ready (this may take several minutes)..."
-kubectl wait --for=condition=Ready certificate wildcard-soverign-cloud -n default --timeout=300s || true
-kubectl wait --for=condition=Ready certificate wildcard-internal-sovereign-cloud -n internal --timeout=300s || true
+kubectl wait --for=condition=Ready certificate wildcard-internal-sovereign-cloud -n cert-manager --timeout=300s || true
+kubectl wait --for=condition=Ready certificate wildcard-sovereign-cloud -n cert-manager --timeout=300s || true
 
-# Copy the internal wildcard certificate to example-admin namespace
-echo "Copying internal wildcard certificate to example-admin namespace..."
+# Copy the certificates to necessary namespaces
+echo "Copying certificates to necessary namespaces..."
 if kubectl get namespace example-admin &>/dev/null; then
   # Create example-admin namespace if it doesn't exist
   kubectl create namespace example-admin --dry-run=client -o yaml | kubectl apply -f -
   
   # Get the internal wildcard certificate secret and copy it to example-admin namespace
-  if kubectl get secret wildcard-internal-sovereign-cloud-tls -n internal &>/dev/null; then
-    kubectl get secret wildcard-internal-sovereign-cloud-tls -n internal -o yaml | \
-      sed 's/namespace: internal/namespace: example-admin/' | \
-      kubectl apply -f -
-    echo "Certificate copied to example-admin namespace"
+  if kubectl get secret wildcard-internal-sovereign-cloud-tls -n cert-manager &>/dev/null; then
+    copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls example-admin
+    echo "Internal certificate copied to example-admin namespace"
   else
     echo "Internal wildcard certificate not ready yet. Please manually copy it later with:"
-    echo "  kubectl get secret wildcard-internal-sovereign-cloud-tls -n internal -o yaml | \\"
-    echo "    sed 's/namespace: internal/namespace: example-admin/' | \\"
-    echo "    kubectl apply -f -"
+    echo "  copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls example-admin"
   fi
 fi
 

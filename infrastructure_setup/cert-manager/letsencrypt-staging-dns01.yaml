@@ -19,7 +19,7 @@ spec:
             key: api-token
       selector:
         dnsZones:
-        - "${DOMAIN}" # This will cover all subdomains
+        - "${CLOUDFLARE_DOMAIN}"
     # Keep the HTTP-01 solver for non-wildcard certificates
     - http01:
         ingress:

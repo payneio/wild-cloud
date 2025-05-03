@@ -57,9 +57,9 @@ spec:
             - --source=service
             - --source=ingress
             - --provider=cloudflare
-            - --txt-owner-id=${CLUSTER_ID}
+            - --txt-owner-id=${OWNER_ID}
             - --log-level=debug
-            - --publish-internal-services # Also publish internal services
+            - --publish-internal-services
             - --no-cloudflare-proxied
           env:
             - name: CF_API_TOKEN

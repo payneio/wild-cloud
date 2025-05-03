@@ -3,7 +3,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard-internal-sovereign-cloud
-  namespace: internal
+  namespace: cert-manager
 spec:
   secretName: wildcard-internal-sovereign-cloud-tls
   dnsNames:
