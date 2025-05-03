@@ -15,6 +15,7 @@
 - Convert metallb from helm install to straight templates.
 - Change all tls references to sovereign-cloud-tls
 - Eliminate all `payne` references.
+- Swap out all uses of `envsubst` with `gomplate`.
 
 ## Need to investigate
 

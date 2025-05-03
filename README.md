@@ -1,9 +1,5 @@
 # Sovereign Cloud
 
-![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?style=for-the-badge&logo=kubernetes&logoColor=white)
-![Traefik](https://img.shields.io/badge/traefik-%231F93B1.svg?style=for-the-badge&logo=traefik&logoColor=white)
-![Let's Encrypt](https://img.shields.io/badge/let's%20encrypt-%23003A70.svg?style=for-the-badge&logo=letsencrypt&logoColor=white)
-
 > Take control of your digital life with your own personal cloud infrastructure
 
 ## Why Build Your Own Cloud?
