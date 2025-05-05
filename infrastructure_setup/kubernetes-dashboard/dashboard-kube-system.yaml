@@ -1,24 +1,4 @@
 ---
-# Certificate for the dashboard
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: kubernetes-dashboard-tls
-  namespace: kubernetes-dashboard
-spec:
-  secretName: kubernetes-dashboard-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  dnsNames:
-    - "dashboard.internal.${DOMAIN}"
-  duration: 2160h # 90 days
-  renewBefore: 360h # 15 days
-  privateKey:
-    algorithm: RSA
-    size: 2048
-
----
 # Internal-only middleware
 apiVersion: traefik.containo.us/v1alpha1
 kind: Middleware
@@ -67,10 +47,11 @@ spec:
           port: 443
           serversTransport: dashboard-transport
   tls:
-    secretName: kubernetes-dashboard-tls
+    secretName: wildcard-internal-sovereign-cloud-tls
 
 ---
-# HTTP to HTTPS redirect
+# HTTP to HTTPS redirect.
+# FIXME: Is this needed?
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
@@ -91,7 +72,8 @@ spec:
           serversTransport: dashboard-transport
 
 ---
-# ServersTransport for HTTPS backend with skip verify
+# ServersTransport for HTTPS backend with skip verify.
+# FIXME: Is this needed?
 apiVersion: traefik.containo.us/v1alpha1
 kind: ServersTransport
 metadata:
