@@ -6,6 +6,7 @@ metadata:
   name: traefik
   namespace: kube-system
   annotations:
+    # Get a stable IP from MetalLB
     metallb.universe.tf/address-pool: production
     metallb.universe.tf/allow-shared-ip: traefik-lb
   labels:
@@ -25,3 +26,4 @@ spec:
       port: 443
       targetPort: websecure
   externalTrafficPolicy: Local
+  
