@@ -1,0 +1,39 @@
+#!/bin/bash
+set -e
+
+# First, ensure netdebug pod is installed
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source environment variables
+if [ -f "$REPO_DIR/load-env.sh" ]; then
+  source "$REPO_DIR/load-env.sh"
+fi
+
+# Check if netdebug is installed, if not deploy it
+if ! kubectl get namespace debug >/dev/null 2>&1; then
+  echo "Setting up netdebug pod..."
+  kubectl apply -f "$REPO_DIR/infrastructure_setup/utils/netdebug.yaml"
+  echo "Waiting for netdebug pod to be ready..."
+  sleep 5
+fi
+
+# Get the netdebug pod name
+NETDEBUG_POD=$(kubectl get pods -n debug -l app=netdebug -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+
+if [ -z "$NETDEBUG_POD" ]; then
+  echo "Waiting for netdebug pod to start..."
+  kubectl get pods -n debug
+  exit 1
+fi
+
+# If arguments provided, run them as a command on the container
+if [ $# -gt 0 ]; then
+  kubectl exec -it -n debug "$NETDEBUG_POD" -- "$@"
+else
+  # Otherwise attach to the container with a shell
+  echo "Attaching to netdebug pod ($NETDEBUG_POD)..."
+  echo "Type 'exit' to detach"
+  echo ""
+  kubectl exec -it -n debug "$NETDEBUG_POD" -- /bin/bash
+fi
