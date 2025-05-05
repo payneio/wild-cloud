@@ -126,7 +126,7 @@ NAMESPACE=$(grep -o "namespace: [a-zA-Z0-9_-]\+" "$TEMP_FILE" | head -1 | cut -d
 if [[ -n "$NAMESPACE" ]]; then
   # Create the namespace if it doesn't exist (using kubectl create which is idempotent with --dry-run=client)
   echo "Creating namespace $NAMESPACE if it doesn't exist..."
-  kubectl create namespace "$NAMESPACE" --dry-run=client | kubectl create -f - 2>/dev/null || true
+  kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
   # Copy certificates to the namespace
   copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls $NAMESPACE
   copy-secret cert-manager:wildcard-sovereign-cloud-tls $NAMESPACE
