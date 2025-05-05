@@ -5,44 +5,39 @@ metadata:
   namespace: kube-system
 data:
   Corefile: |
-    .:53 {
-        errors
-        health
-        ready
-        kubernetes cluster.local in-addr.arpa ip6.arpa {
-          pods insecure
-          fallthrough in-addr.arpa ip6.arpa
-        }
-        hosts {
-          192.168.8.218 box-01
-          192.168.8.222 civil
-          192.168.8.240 traefik.${DOMAIN}
-          192.168.8.241 dns.internal.${DOMAIN}
-          
-          # Test records
-          192.168.8.240 test.${DOMAIN}
-          192.168.8.240 example-app.${DOMAIN}
-          192.168.8.240 civilsociety.${DOMAIN}
-          192.168.8.241 test.internal.${DOMAIN}
-          192.168.8.240 example-admin.internal.${DOMAIN}
-          192.168.8.240 dashboard.internal.${DOMAIN}
-          192.168.8.240 kubernetes-dashboard.internal.${DOMAIN}
-          
-          ttl 60
-          reload 15s
-          fallthrough
-        }
-        prometheus :9153
-        forward . 8.8.8.8 8.8.4.4 {
-          max_concurrent 1000
-        }
-        cache 30
-        loop
-        reload
-        loadbalance
-        import /etc/coredns/custom/*.override
+    # LAN DNS. All internal domains should resolve to the proxy.
+    internal.cloud.payne.io:53 {
+      errors
+      cache 30
+      reload
+      template IN A {
+        match (.*)\.internal\.cloud\.payne\.io\.
+        answer "{{ .Name }} 60 IN A 192.168.8.240"
+      }
     }
-    import /etc/coredns/custom/*.server
+
+    # In-cloud DNS
+    .:53 {
+      health
+      errors
+      cache 30
+      reload
+      loop
+      ready
+      loadbalance
+      kubernetes cluster.local in-addr.arpa ip6.arpa {
+          fallthrough in-addr.arpa ip6.arpa
+      }
+      hosts /etc/coredns/NodeHosts {
+          fallthrough
+      }
+      forward . 1.1.1.1 8.8.8.8 {
+        max_concurrent 1000
+      }
+    }
+
   NodeHosts: |
-    # This field needs to remain for compatibility, even if empty
-    # Host entries are now in the Corefile hosts section
+    192.168.8.218 box-01
+    192.168.8.222 civil
+
+    # 192.168.8.240 dashboard.internal.${DOMAIN}

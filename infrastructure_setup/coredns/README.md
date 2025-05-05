@@ -1,0 +1,18 @@
+# CoreDNS
+
+- https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+- https://github.com/kubernetes/dns/blob/master/docs/specification.md
+- https://coredns.io/
+
+CoreDNS has the `kubernetes` plugin, so it returns all k8s service endpoints in well-known format.
+
+All services and pods are registered in CoreDNS.
+
+- <service-name>.<namespace>.svc.cluster.local
+- <service-name>.<namespace>
+- <service-name> (if in the same namespace)
+
+- <pod-ipv4-address>.<namespace>.pod.cluster.local
+- <pod-ipv4-address>.<service-name>.<namespace>.svc.cluster.local
+
+Anything wuery for a resource in the `internal.$DOMAIN` domain will be given the IP of the Traefik proxy. We expose the CoreDNS server in the LAN via MetalLB just for this capability.
