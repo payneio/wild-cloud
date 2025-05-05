@@ -5,12 +5,8 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    # The new configuration format for MetalLB v0.13.0+
     apiVersion: v1
-    # We'll use IPAddressPool and L2Advertisement CRs instead of the deprecated configInline
-    # Need to install the CRDs separately
     crds:
       enabled: true
-    # Disable controller.configInline since it's deprecated
     controller:
       configInline: null

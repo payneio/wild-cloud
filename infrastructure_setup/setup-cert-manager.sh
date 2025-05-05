@@ -63,22 +63,6 @@ echo "Waiting for wildcard certificates to be ready (this may take several minut
 kubectl wait --for=condition=Ready certificate wildcard-internal-sovereign-cloud -n cert-manager --timeout=300s || true
 kubectl wait --for=condition=Ready certificate wildcard-sovereign-cloud -n cert-manager --timeout=300s || true
 
-# Copy the certificates to necessary namespaces
-echo "Copying certificates to necessary namespaces..."
-if kubectl get namespace example-admin &>/dev/null; then
-  # Create example-admin namespace if it doesn't exist
-  kubectl create namespace example-admin --dry-run=client -o yaml | kubectl apply -f -
-  
-  # Get the internal wildcard certificate secret and copy it to example-admin namespace
-  if kubectl get secret wildcard-internal-sovereign-cloud-tls -n cert-manager &>/dev/null; then
-    copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls example-admin
-    echo "Internal certificate copied to example-admin namespace"
-  else
-    echo "Internal wildcard certificate not ready yet. Please manually copy it later with:"
-    echo "  copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls example-admin"
-  fi
-fi
-
 echo "cert-manager setup complete!"
 echo ""
 echo "To verify the installation:"
