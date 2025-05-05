@@ -2,7 +2,6 @@
 
 ## Current Backlog
 
-- Get custom data out of coredns config.
 - Ensure everything comes from .env and nowhere else. .env is the source of
   truth (not, e.g. the environment, though that will be set up).
 - Remove helm dependency in preference of kustomize and small scripts (declarative, unix philosopy).
@@ -11,11 +10,7 @@
   a docker version requires changes (e.g. a different env or secret required).
   - Can we rely on or join community efforts here? E.g.
     https://github.com/docker-library/official-images?
-- Template out the 192.168.8 addresses in infrastructure_setup.
-- Convert metallb from helm install to straight templates.
-- Change all tls references to sovereign-cloud-tls
 - Eliminate all `payne` references.
-- Swap out all uses of `envsubst` with `gomplate`.
 
 ## Need to investigate
 

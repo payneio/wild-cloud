@@ -56,6 +56,7 @@ One command sets up your entire cloud infrastructure:
 ```
 
 This installs and configures:
+
 - **MetalLB**: Provides IP addresses for services
 - **Traefik**: Handles ingress (routing) with automatic HTTPS
 - **cert-manager**: Manages TLS certificates automatically

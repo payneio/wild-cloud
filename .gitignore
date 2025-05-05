@@ -6,3 +6,5 @@ services
 charts
 CLAUDE.md
 .bots/*/sessions
+
+**/.claude/settings.local.json
