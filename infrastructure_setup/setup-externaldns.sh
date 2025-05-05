@@ -28,16 +28,24 @@ else
   exit 1
 fi
 
+# Apply common RBAC resources
+echo "Deploying ExternalDNS RBAC resources..."
+cat ${SCRIPT_DIR}/externaldns/externaldns-rbac.yaml | envsubst | kubectl apply -f -
+
 # Apply ExternalDNS manifests with environment variables
-echo "Deploying ExternalDNS..."
-cat ${SCRIPT_DIR}/externaldns/externaldns.yaml | envsubst | kubectl apply -f -
+echo "Deploying ExternalDNS for external DNS (Cloudflare)..."
+cat ${SCRIPT_DIR}/externaldns/externaldns-cloudflare.yaml | envsubst | kubectl apply -f -
 
 # Wait for ExternalDNS to be ready
-echo "Waiting for ExternalDNS to be ready..."
+echo "Waiting for Cloudflare ExternalDNS to be ready..."
 kubectl rollout status deployment/external-dns -n externaldns --timeout=60s
+
+# echo "Waiting for CoreDNS ExternalDNS to be ready..."
+# kubectl rollout status deployment/external-dns-coredns -n externaldns --timeout=60s
 
 echo "ExternalDNS setup complete!"
 echo ""
 echo "To verify the installation:"
 echo "  kubectl get pods -n externaldns"
 echo "  kubectl logs -n externaldns -l app=external-dns -f"
+echo "  kubectl logs -n externaldns -l app=external-dns-coredns -f"
