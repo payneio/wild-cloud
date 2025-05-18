@@ -8,3 +8,7 @@ CLAUDE.md
 .bots/*/sessions
 
 **/.claude/settings.local.json
+
+# Sovereign Cloud
+apps/**/config/secrets.env
+apps/**/config/config.env
