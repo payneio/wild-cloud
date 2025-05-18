@@ -1,0 +1,5 @@
+name: postgres
+install: true
+description: PostgreSQL is a powerful, open source object-relational database system.
+version: 1.0.0
+icon: https://www.postgresql.org/media/img/about/press/elephant.png
