@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nextcloud
+labels:
+  - includeSelectors: true
+    pairs:
+      app: nextcloud
+      managedBy: kustomize
+      partOf: sovereign-cloud
+resources:
+  - cron.yaml
+  - deployment.yaml
+  - headers.yaml
+  - ingress.yaml
+  - namespace.yaml
+  - pvc.yaml
+  - service.yaml
+configMapGenerator:
+  - name: config
+    envs:
+      - config/config.env
+secretGenerator:
+  - name: secrets
+    envs:
+      - config/secrets.env
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.NEXTCLOUD_DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: nextcloud-ingress
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.NEXTCLOUD_NFS_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: nextcloud-pvc-nfs
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.NEXTCLOUD_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: nextcloud-pvc
+        fieldPaths:
+          - spec.resources.requests.storage

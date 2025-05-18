@@ -1,0 +1,87 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextcloud
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: nextcloud
+    spec:
+      containers:
+        - image: nextcloud:29.0.16-apache
+          name: nextcloud
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: nextcloud-secrets
+            - configMapRef:
+                name: config
+            - secretRef:
+                name: secrets
+            - configMapRef:
+                name: config
+          env:
+            - name: REDIS_HOST
+              value: redis.redis
+            - name: POSTGRES_HOST
+              value: postgres.postgres
+            - name: NEXTCLOUD_TRUSTED_DOMAINS
+              valueFrom:
+                configMapKeyRef:
+                  key: DOMAIN
+                  name: config
+            - name: NEXTCLOUD_DATA_DIR
+              value: /mnt/data
+            - name: TRUSTED_PROXIES
+              valueFrom:
+                configMapKeyRef:
+                  key: DOMAIN
+                  name: config
+            - name: APACHE_DISABLE_REWRITE_IP
+              value: "1"
+            - name: OVERWRITEHOST
+              valueFrom:
+                configMapKeyRef:
+                  key: DOMAIN
+                  name: config
+            - name: OVERWRITEPROTOCOL
+              value: https
+            - name: OVERWRITECLIURL
+              valueFrom:
+                configMapKeyRef:
+                  key: DOMAIN_URL
+                  name: config
+            - name: OVERWRITEWEBROOT
+              value: "/"
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  key: TZ
+                  name: config
+          volumeMounts:
+            - mountPath: /var/www/html
+              name: nextcloud-storage
+              readOnly: false
+            - mountPath: /mnt/data
+              name: nextcloud-storage-nfs
+              readOnly: false
+      volumes:
+        - name: nextcloud-storage
+          persistentVolumeClaim:
+            claimName: nextcloud-pvc
+        - name: nextcloud-storage-nfs
+          persistentVolumeClaim:
+            claimName: nextcloud-pvc-nfs

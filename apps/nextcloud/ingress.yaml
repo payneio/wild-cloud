@@ -1,0 +1,23 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nextcloud-public
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: nextcloud-headers@kubernetescrd,nextcloud-redirects@kubernetescrd
+spec:
+  rules:
+    - host: your.nextcloud.domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nextcloud
+                port:
+                  number: 80
+  tls:
+    - secretName: wildcard-internal-sovereign-cloud-tls
+      hosts:
+        - your.nextcloud.domain

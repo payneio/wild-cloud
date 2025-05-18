@@ -1,0 +1,26 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nextcloud-cron
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: nextcloud
+              image: nextcloud:25.0.3-apache
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: NEXTCLOUD_URL
+                  valueFrom:
+                    configMapKeyRef:
+                      name: config
+                      key: DOMAIN_URL
+              command:
+                - /bin/sh
+                - -c
+                - "curl -s ${NEXTCLOUD_URL}/cron.php"
+          restartPolicy: OnFailure
