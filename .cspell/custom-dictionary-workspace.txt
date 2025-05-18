@@ -7,6 +7,7 @@ coredns
 crds
 envsubst
 externaldns
+glddns
 gomplate
 Jellyfin
 KUBECONFIG
@@ -24,4 +25,5 @@ PGDATA
 SAMEORIGIN
 traefik
 USEPATH
+vxlan
 websecure

@@ -29,6 +29,7 @@ source load-env.sh
 ```
 
 Important variables to set in your `.env` file:
+
 - `DOMAIN`: Your domain name (e.g., `cloud.example.com`)
 - `EMAIL`: Your email for Let's Encrypt certificates
 - `CLOUDFLARE_API_TOKEN`: If using Cloudflare for DNS
@@ -58,6 +59,7 @@ One command sets up your entire cloud infrastructure:
 This installs and configures:
 
 - **MetalLB**: Provides IP addresses for services
+- **LongHorn**: Provides distributed block storage on the cluster
 - **Traefik**: Handles ingress (routing) with automatic HTTPS
 - **cert-manager**: Manages TLS certificates automatically
 - **CoreDNS**: Provides internal DNS resolution
@@ -93,6 +95,7 @@ Run the validation script to ensure everything is working correctly:
 ```
 
 This script checks:
+
 - All infrastructure components
 - DNS resolution
 - Service connectivity

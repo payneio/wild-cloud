@@ -5,6 +5,7 @@
 
 ## Infrastructure Setup Cleanup
 
+- Put Cloudflare-specific setup in a `dns_providers` directory.
 - Standardize metallb allocation in coredns-service.yaml and traefik-service.yaml.
 - Remove helm dependency in preference of kustomize.
 - Figure out Traefik IngressRoute CRD. Is it better than just Ingress? (dashboard uses IngressRoute currently, example-admin uses Ingress)
