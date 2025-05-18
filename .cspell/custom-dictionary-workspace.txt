@@ -1,0 +1,27 @@
+# Custom Dictionary Words
+apiextensions
+certificaterequests
+certmanager
+containo
+coredns
+crds
+envsubst
+externaldns
+gomplate
+Jellyfin
+KUBECONFIG
+kubernetescrd
+letsencrypt
+metallb
+NEXTCLOUD
+OBJECTSTORE
+objref
+OVERWRITECLIURL
+OVERWRITEHOST
+OVERWRITEPROTOCOL
+OVERWRITEWEBROOT
+PGDATA
+SAMEORIGIN
+traefik
+USEPATH
+websecure

@@ -53,7 +53,6 @@ For detailed instructions, check out our documentation:
 
 - [**Setup Guide**](./docs/SETUP.md) - Step-by-step instructions for setting up your infrastructure
 - [**Applications Guide**](./docs/APPS.md) - How to deploy and manage applications on your cloud
-- [**Charts Guide**](./charts/README.md) - Working with Helm charts and custom applications
 - [**Maintenance Guide**](./docs/MAINTENANCE.md) - Troubleshooting, backups, updates, and security
 
 After setup, visit your dashboard at `https://dashboard.internal.yourdomain.com` to start exploring your new personal cloud infrastructure!

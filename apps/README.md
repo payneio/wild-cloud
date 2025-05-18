@@ -1,7 +1,24 @@
-# Apps
+# Sovereign Cloud-maintained apps
 
-This will be the primary place for Sovereign Cloud-maintained apps to be included.
+## Usage
 
-## Status
+`generate-config <app-name>`
+`kubectl apply -k apps/<app-name>`
 
-Currently none are functional.
+## Best Practices
+
+- `*.yaml`, not `*.yml`.
+- Keep the service and deployment names the same as the app for easy DNS lookup.
+- A starting `kustomization.yaml` for every app:
+
+  ```yaml
+  apiVersion: kustomize.config.k8s.io/v1beta1
+  kind: Kustomization
+  namespace: postgres
+  labels:
+    - includeSelectors: true
+      pairs:
+        app: <app>
+        managedBy: kustomize
+        partOf: sovereign-cloud
+  ```
