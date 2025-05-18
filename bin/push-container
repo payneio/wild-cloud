@@ -1,0 +1,62 @@
+#!/bin/bash
+set -e
+
+# Load environment variables
+source "$(dirname "$0")/../load-env.sh" 2>/dev/null || true
+
+# Display usage information
+usage() {
+  echo "Usage: $(basename "$0") <container-name> [version]"
+  echo
+  echo "Build and push a container image to the local registry from Dockerfile in containers/<container-name>"
+  echo
+  echo "Arguments:"
+  echo "  container-name    The name of the container (must exist in containers/ directory)"
+  echo "  version           Version tag for the image (default: latest)"
+  echo
+  echo "Example:"
+  echo "  $(basename "$0") nextcloud"
+  echo "  $(basename "$0") nextcloud 25.0.4-custom"
+  exit 1
+}
+
+# Check if required arguments are provided
+if [ $# -lt 1 ]; then
+  usage
+fi
+
+CONTAINER_NAME="$1"
+VERSION="${2:-latest}"
+REGISTRY=$DOCKER_REGISTRY_HOST
+CONTAINER_DIR="/data/repos/sovereign-cloud/containers/${CONTAINER_NAME}"
+IMAGE_NAME="${REGISTRY}/${CONTAINER_NAME}:${VERSION}"
+
+# Check if container directory exists
+if [ ! -d "$CONTAINER_DIR" ]; then
+  echo "Error: Container directory not found: $CONTAINER_DIR"
+  echo "Available containers:"
+  ls -1 /data/repos/sovereign-cloud/containers/
+  exit 1
+fi
+
+# Check if Dockerfile exists
+if [ ! -f "${CONTAINER_DIR}/Dockerfile" ]; then
+  echo "Error: Dockerfile not found in ${CONTAINER_DIR}"
+  exit 1
+fi
+
+echo "Building container: ${CONTAINER_NAME}"
+echo "Dockerfile path: ${CONTAINER_DIR}/Dockerfile"
+echo "Target image: ${IMAGE_NAME}"
+echo
+
+# Build the Docker image
+echo "Building image..."
+docker build -t "${IMAGE_NAME}" -f "${CONTAINER_DIR}/Dockerfile" "${CONTAINER_DIR}"
+
+# Push the image to the registry
+echo "Pushing image to registry: ${REGISTRY}..."
+docker push "${IMAGE_NAME}"
+
+echo
+echo "Successfully built and pushed: ${IMAGE_NAME}"
