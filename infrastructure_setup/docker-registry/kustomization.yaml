@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: docker-registry
+labels:
+- includeSelectors: true
+  pairs:
+    app: docker-registry
+    managedBy: sovereign-cloud
+resources:
+- deployment.yaml
+- ingress.yaml
+- service.yaml
+- namespace.yaml
+- pvc.yaml
+configMapGenerator:
+  - name: docker-registry-config
+    envs:
+      - config.env
+replacements:
+  - source:
+      kind: ConfigMap
+      name: docker-registry-config
+      fieldPath: data.DOCKER_REGISTRY_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: docker-registry-pvc
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: docker-registry-config
+      fieldPath: data.DOCKER_REGISTRY_HOST
+    targets:
+      - select:
+          kind: Ingress
+          name: docker-registry
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0

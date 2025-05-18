@@ -32,6 +32,10 @@ chmod +x *.sh
 # Setup Kubernetes Dashboard
 ./setup-dashboard.sh
 
+# Setup Docker Registry
+./setup-registry.sh
+kubectl apply -k docker-registry
+
 echo "Infrastructure setup complete!"
 echo
 echo "Next steps:"
