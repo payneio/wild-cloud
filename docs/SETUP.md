@@ -72,10 +72,11 @@ For larger workloads or high availability, you can add more nodes:
 
 ```bash
 # On your master node, get the node token
-sudo cat /var/lib/rancher/k3s/server/node-token
-
+NODE_TOKEN=`sudo cat /var/lib/rancher/k3s/server/node-token`
+MASTER_IP=192.168.8.222
 # On each new node, join the cluster
-curl -sfL https://get.k3s.io | K3S_URL=https://MASTER_IP:6443 K3S_TOKEN=NODE_TOKEN sh -
+
+curl -sfL https://get.k3s.io | K3S_URL=https://$MASTER_IP:6443 K3S_TOKEN=$NODE_TOKEN sh -
 ```
 
 ## Next Steps
