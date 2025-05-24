@@ -290,10 +290,9 @@ show_component_logs() {
 }
 
 echo -e "${BLUE}=== Checking Core Components ===${NC}"
-# Check MetalLB components - using direct specific label selectors
-# We know from checking that our pods use app=metallb,component=speaker/controller labels
-check_component "MetalLB Controller" "metallb-system" "app=metallb,component=controller"
-check_component "MetalLB Speaker" "metallb-system" "app=metallb,component=speaker"
+# Check MetalLB components - using correct label selectors
+check_component "MetalLB Controller" "metallb-system" "app.kubernetes.io/component=controller,app.kubernetes.io/name=metallb"
+check_component "MetalLB Speaker" "metallb-system" "app.kubernetes.io/component=speaker,app.kubernetes.io/name=metallb"
 
 # Check MetalLB IP address pools
 echo -e "${YELLOW}Checking MetalLB IP address pools...${NC}"
