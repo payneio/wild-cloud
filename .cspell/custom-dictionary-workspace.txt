@@ -15,6 +15,7 @@ kubernetescrd
 letsencrypt
 metallb
 NEXTCLOUD
+nftables
 OBJECTSTORE
 objref
 OVERWRITECLIURL
