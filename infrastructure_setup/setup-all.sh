@@ -17,6 +17,9 @@ chmod +x *.sh
 # Setup MetalLB (must be first for IP allocation)
 ./setup-metallb.sh
 
+# Setup Longhorn
+./setup-longhorn.sh
+
 # Setup Traefik
 ./setup-traefik.sh
 
