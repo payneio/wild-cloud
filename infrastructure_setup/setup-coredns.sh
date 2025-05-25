@@ -14,16 +14,17 @@ echo "Setting up CoreDNS for k3s..."
 echo "Script directory: ${SCRIPT_DIR}"
 echo "Current directory: $(pwd)"
 
-# Apply the custom config for the k3s-provided CoreDNS
-echo "Applying CoreDNS configuration..."
-cat "${SCRIPT_DIR}/coredns/coredns-config.yaml" | envsubst | kubectl apply -f -
+# Apply the k3s-compatible custom DNS override (k3s will preserve this)
+echo "Applying CoreDNS custom override configuration..."
+cat "${SCRIPT_DIR}/coredns/coredns-custom-config.yaml" | envsubst | kubectl apply -f -
 
 # Apply the LoadBalancer service for external access to CoreDNS
 echo "Applying CoreDNS service configuration..."
-cat "${SCRIPT_DIR}/coredns/coredns-service.yaml" | envsubst | kubectl apply -f -
+cat "${SCRIPT_DIR}/coredns/coredns-lb-service.yaml" | envsubst | kubectl apply -f -
 
 # Restart CoreDNS pods to apply the changes
 echo "Restarting CoreDNS pods to apply changes..."
-kubectl delete pod -n kube-system -l k8s-app=kube-dns
+kubectl rollout restart deployment/coredns -n kube-system
+kubectl rollout status deployment/coredns -n kube-system
 
 echo "CoreDNS setup complete!"

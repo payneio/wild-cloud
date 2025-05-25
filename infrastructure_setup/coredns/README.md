@@ -15,4 +15,35 @@ All services and pods are registered in CoreDNS.
 - <pod-ipv4-address>.<namespace>.pod.cluster.local
 - <pod-ipv4-address>.<service-name>.<namespace>.svc.cluster.local
 
-Anything wuery for a resource in the `internal.$DOMAIN` domain will be given the IP of the Traefik proxy. We expose the CoreDNS server in the LAN via MetalLB just for this capability.
+Any query for a resource in the `internal.$DOMAIN` domain will be given the IP of the Traefik proxy. We expose the CoreDNS server in the LAN via MetalLB just for this capability.
+
+## Default CoreDNS Configuration
+
+Found at: https://github.com/k3s-io/k3s/blob/master/manifests/coredns.yaml
+
+This is k3s default CoreDNS configuration, for reference:
+
+```txt
+.:53 {
+    errors
+    health
+    ready
+    kubernetes %{CLUSTER_DOMAIN}% in-addr.arpa ip6.arpa {
+      pods insecure
+      fallthrough in-addr.arpa ip6.arpa
+    }
+    hosts /etc/coredns/NodeHosts {
+      ttl 60
+      reload 15s
+      fallthrough
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf
+    cache 30
+    loop
+    reload
+    loadbalance
+    import /etc/coredns/custom/*.override
+}
+import /etc/coredns/custom/*.server
+```
