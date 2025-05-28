@@ -19,6 +19,6 @@ spec:
                 port:
                   number: 8096
   tls:
-    - secretName: wildcard-internal-sovereign-cloud-tls
+    - secretName: wildcard-internal-wild-cloud-tls
       hosts:
         - your.jellyfin.domain

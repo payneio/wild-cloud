@@ -6,7 +6,7 @@ labels:
     pairs:
       app: jellyfin
       managedBy: kustomize
-      partOf: sovereign-cloud
+      partOf: wild-cloud
 resources:
   - deployment.yaml
   - ingress.yaml

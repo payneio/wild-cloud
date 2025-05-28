@@ -9,10 +9,10 @@ spec:
   ipWhiteList:
     # Restrict to local private network ranges
     sourceRange:
-      - 127.0.0.1/32    # localhost
-      - 10.0.0.0/8      # Private network
-      - 172.16.0.0/12   # Private network
-      - 192.168.0.0/16  # Private network
+      - 127.0.0.1/32 # localhost
+      - 10.0.0.0/8 # Private network
+      - 172.16.0.0/12 # Private network
+      - 192.168.0.0/16 # Private network
 
 ---
 # HTTPS redirect middleware
@@ -47,7 +47,7 @@ spec:
           port: 443
           serversTransport: dashboard-transport
   tls:
-    secretName: wildcard-internal-sovereign-cloud-tls
+    secretName: wildcard-internal-wild-cloud-tls
 
 ---
 # HTTP to HTTPS redirect.
@@ -82,4 +82,3 @@ metadata:
 spec:
   insecureSkipVerify: true
   serverName: dashboard.internal.${DOMAIN}
-

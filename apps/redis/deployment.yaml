@@ -20,7 +20,10 @@ spec:
             - containerPort: 6379
           env:
             - name: TZ
-              value: America/New_York
+              valueFrom:
+                configMapKeyRef:
+                  name: config
+                  key: TZ
           envFrom:
             - configMapRef:
                 name: config

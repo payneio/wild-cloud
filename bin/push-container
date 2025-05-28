@@ -28,14 +28,14 @@ fi
 CONTAINER_NAME="$1"
 VERSION="${2:-latest}"
 REGISTRY=$DOCKER_REGISTRY_HOST
-CONTAINER_DIR="/data/repos/sovereign-cloud/containers/${CONTAINER_NAME}"
+CONTAINER_DIR="/data/repos/wild-cloud/containers/${CONTAINER_NAME}"
 IMAGE_NAME="${REGISTRY}/${CONTAINER_NAME}:${VERSION}"
 
 # Check if container directory exists
 if [ ! -d "$CONTAINER_DIR" ]; then
   echo "Error: Container directory not found: $CONTAINER_DIR"
   echo "Available containers:"
-  ls -1 /data/repos/sovereign-cloud/containers/
+  ls -1 /data/repos/wild-cloud/containers/
   exit 1
 fi
 

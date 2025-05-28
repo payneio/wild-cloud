@@ -175,5 +175,5 @@
   "system_prompt_path": null,
   "name": "cyclo",
   "emoji": "🤖",
-  "init_cwd": "/data/repos/sovereign-cloud"
+  "init_cwd": "/data/repos/wild-cloud"
 }

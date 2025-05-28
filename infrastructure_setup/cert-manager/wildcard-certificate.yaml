@@ -2,13 +2,13 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: wildcard-sovereign-cloud
+  name: wildcard-wild-cloud
   namespace: cert-manager
 spec:
-  secretName: wildcard-sovereign-cloud-tls
+  secretName: wildcard-wild-cloud-tls
   dnsNames:
-  - "*.${DOMAIN}"
-  - "${DOMAIN}"
+    - "*.${DOMAIN}"
+    - "${DOMAIN}"
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer

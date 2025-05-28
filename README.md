@@ -1,6 +1,8 @@
-# Sovereign Cloud
+# Wild Cloud
 
-> Take control of your digital life with your own personal cloud infrastructure
+Welcome! So excited you're here!
+
+When I was an 8 year old kid, I had a computer named the Commodore64. One of the coolest things about it was th
 
 ## Why Build Your Own Cloud?
 

@@ -20,8 +20,8 @@ echo "Installing Kubernetes Dashboard core components..."
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
 
 # Copying cert-manager secrets to the dashboard namespace
-copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls $NAMESPACE
-copy-secret cert-manager:wildcard-sovereign-cloud-tls $NAMESPACE
+copy-secret cert-manager:wildcard-internal-wild-cloud-tls $NAMESPACE
+copy-secret cert-manager:wildcard-wild-cloud-tls $NAMESPACE
 
 # Create admin service account and token
 echo "Creating dashboard admin service account and token..."

@@ -6,7 +6,7 @@ labels:
     pairs:
       app: nextcloud
       managedBy: kustomize
-      partOf: sovereign-cloud
+      partOf: wild-cloud
 resources:
   - cron.yaml
   - deployment.yaml

@@ -17,4 +17,4 @@ spec:
   tls:
     - hosts:
         - docker-registry.internal.${DOMAIN}
-      secretName: wildcard-internal-sovereign-cloud-tls
+      secretName: wildcard-internal-wild-cloud-tls

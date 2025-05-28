@@ -95,7 +95,7 @@ spec:
   tls:
     - hosts:
         - my-app.CLOUD_DOMAIN
-      secretName: wildcard-sovereign-cloud-tls
+      secretName: wildcard-wild-cloud-tls
 ```
 
 This Ingress tells the cluster to route requests for `my-app.CLOUD_DOMAIN` to your service. The annotations provide hints to other systems like ExternalDNS.
@@ -150,7 +150,7 @@ spec:
             - --source=service
             - --source=ingress
             - --provider=cloudflare
-            - --txt-owner-id=sovereign-cloud
+            - --txt-owner-id=wild-cloud
 ```
 
 ExternalDNS watches Kubernetes Services and Ingresses with appropriate annotations, then creates corresponding DNS records in CloudFlare, making your applications discoverable by domain name.
@@ -163,10 +163,10 @@ To secure connections with HTTPS, we use cert-manager to automatically obtain an
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: wildcard-sovereign-cloud-io
+  name: wildcard-wild-cloud-io
   namespace: default
 spec:
-  secretName: wildcard-sovereign-cloud-tls
+  secretName: wildcard-wild-cloud-tls
   dnsNames:
     - "*.CLOUD_DOMAIN"
     - "CLOUD_DOMAIN"
