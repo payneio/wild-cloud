@@ -13,6 +13,8 @@ spec:
   selector:
     app: immich
     component: server
+    managedBy: kustomize
+    partOf: wild-cloud
 ---
 apiVersion: v1
 kind: Service
@@ -27,3 +29,5 @@ spec:
   selector:
     app: immich
     component: machine-learning
+    managedBy: kustomize
+    partOf: wild-cloud

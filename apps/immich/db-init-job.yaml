@@ -29,9 +29,24 @@ spec:
               
               # Connect to the immich database and enable required extensions
               PGPASSWORD=${POSTGRES_ADMIN_PASSWORD} psql -h ${DB_HOSTNAME} -U postgres -d ${DB_DATABASE_NAME} <<EOF
-              CREATE EXTENSION IF NOT EXISTS vector;
-              CREATE EXTENSION IF NOT EXISTS cube;
-              CREATE EXTENSION IF NOT EXISTS earthdistance;
+              DO \$\$
+              BEGIN
+                -- Create vector extension if it doesn't exist
+                IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+                  CREATE EXTENSION vector;
+                END IF;
+                
+                -- Create cube extension if it doesn't exist
+                IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'cube') THEN
+                  CREATE EXTENSION cube;
+                END IF;
+                
+                -- Create earthdistance extension if it doesn't exist (depends on cube)
+                IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'earthdistance') THEN
+                  CREATE EXTENSION earthdistance;
+                END IF;
+              END
+              \$\$;
               EOF
           env:
             - name: POSTGRES_ADMIN_PASSWORD
