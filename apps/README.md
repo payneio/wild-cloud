@@ -1,4 +1,4 @@
-# Sovereign Cloud-maintained apps
+# Wild Cloud-maintained apps
 
 ## Usage
 
@@ -20,5 +20,5 @@
       pairs:
         app: <app>
         managedBy: kustomize
-        partOf: sovereign-cloud
+        partOf: wild-cloud
   ```
