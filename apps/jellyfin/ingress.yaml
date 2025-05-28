@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jellyfin-public
+  annotations:
+    external-dns.alpha.kubernetes.io/target: your.jellyfin.domain
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  rules:
+    - host: your.jellyfin.domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jellyfin
+                port:
+                  number: 8096
+  tls:
+    - secretName: wildcard-internal-sovereign-cloud-tls
+      hosts:
+        - your.jellyfin.domain

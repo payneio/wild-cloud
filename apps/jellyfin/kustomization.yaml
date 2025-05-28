@@ -1,0 +1,82 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: jellyfin
+labels:
+  - includeSelectors: true
+    pairs:
+      app: jellyfin
+      managedBy: kustomize
+      partOf: sovereign-cloud
+resources:
+  - deployment.yaml
+  - ingress.yaml
+  - namespace.yaml
+  - pvc.yaml
+  - service.yaml
+configMapGenerator:
+  - name: config
+    envs:
+      - config/config.env
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: jellyfin-public
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/target]
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.JELLYFIN_DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: jellyfin-public
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.JELLYFIN_CONFIG_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: jellyfin-config-pvc
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.JELLYFIN_CACHE_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: jellyfin-cache-pvc
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.JELLYFIN_MEDIA_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: jellyfin-media-pvc
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.JELLYFIN_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: jellyfin
+        fieldPaths:
+          - spec.template.spec.containers.0.image
