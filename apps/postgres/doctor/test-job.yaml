@@ -1,0 +1,77 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-doctor
+spec:
+  template:
+    spec:
+      containers:
+        - name: postgres-doctor
+          image: pgvector/pgvector:pg15
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "=== Postgres Doctor - Starting Tests ==="
+              echo "Timestamp: $(date)"
+              echo "Password from env: [${POSTGRES_PASSWORD}]"
+              echo "Job pod IP: $(hostname -i)"
+              echo "Postgres service resolves to: $(getent hosts postgres.postgres.svc.cluster.local | awk '{print $1}')"
+              echo
+
+              # Test 1: Local connection (trust auth)
+              echo "TEST 1: Local connection with trust authentication"
+              if psql -h localhost -U postgres -c "SELECT 'Local connection: SUCCESS' as test_result;" 2>&1; then
+                echo "✓ Local connection: SUCCESS"
+              else
+                echo "✗ Local connection: FAILED"
+              fi
+              echo
+
+              # Test 2: Remote connection with password
+              echo "TEST 2: Remote connection with password authentication"
+              if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "SELECT 'Remote connection: SUCCESS' as test_result;" 2>&1; then
+                echo "✓ Remote connection: SUCCESS"
+              else
+                echo "✗ Remote connection: FAILED"
+              fi
+              echo
+
+              # Test 3: Check postgres version and extensions
+              echo "TEST 3: Check postgres version and available extensions"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "SELECT version();"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "SELECT name FROM pg_available_extensions WHERE name IN ('vector', 'cube', 'earthdistance') ORDER BY name;"
+              echo
+
+              # Test 4: List all databases
+              echo "TEST 4: List all databases"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "\l"
+              echo
+
+              # Test 5: List all users
+              echo "TEST 5: List all users and their attributes"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "\du"
+              echo
+
+              # Test 6: Check authentication configuration
+              echo "TEST 6: Check pg_hba.conf authentication rules"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "SELECT type, database, user_name, address, auth_method FROM pg_hba_file_rules WHERE auth_method IS NOT NULL ORDER BY line_number;"
+              echo
+
+              # Test 7: Check active connections
+              echo "TEST 7: Check active database connections"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "SELECT datname, usename, client_addr, state, query_start FROM pg_stat_activity WHERE state IS NOT NULL ORDER BY query_start DESC;"
+              echo
+
+              # Test 9: Check for long-running queries
+              echo "TEST 9: Check for long-running queries (> 30 seconds)"
+              PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.postgres.svc.cluster.local -U postgres -c "SELECT pid, now() - pg_stat_activity.query_start AS duration, query FROM pg_stat_activity WHERE query_start IS NOT NULL AND now() - pg_stat_activity.query_start > interval '30 seconds' ORDER BY duration DESC;"
+              echo
+
+              echo "=== Postgres Doctor - Tests Complete ==="
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secrets
+                  key: POSTGRES_PASSWORD
+      restartPolicy: Never
