@@ -9,6 +9,7 @@ envsubst
 externaldns
 glddns
 gomplate
+IMMICH
 Jellyfin
 KUBECONFIG
 kubernetescrd
@@ -16,6 +17,7 @@ letsencrypt
 metallb
 NEXTCLOUD
 nftables
+NXDOMAIN
 OBJECTSTORE
 objref
 OVERWRITECLIURL
@@ -23,6 +25,7 @@ OVERWRITEHOST
 OVERWRITEPROTOCOL
 OVERWRITEWEBROOT
 PGDATA
+rcode
 SAMEORIGIN
 traefik
 USEPATH
