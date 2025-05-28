@@ -52,6 +52,29 @@ cat ${SCRIPT_DIR}/cert-manager/letsencrypt-prod-dns01.yaml | envsubst | kubectl 
 echo "Waiting for Let's Encrypt issuers to be ready..."
 sleep 10
 
+# Configure cert-manager to use external DNS for challenge verification
+echo "Configuring cert-manager to use external DNS servers..."
+kubectl patch deployment cert-manager -n cert-manager --patch '
+spec:
+  template:
+    spec:
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - "1.1.1.1"
+          - "8.8.8.8"
+        searches:
+          - cert-manager.svc.cluster.local
+          - svc.cluster.local
+          - cluster.local
+        options:
+          - name: ndots
+            value: "5"'
+
+# Wait for cert-manager to restart with new DNS config
+echo "Waiting for cert-manager to restart with new DNS configuration..."
+kubectl rollout status deployment/cert-manager -n cert-manager --timeout=120s
+
 # Apply wildcard certificates
 echo "Creating wildcard certificates..."
 cat ${SCRIPT_DIR}/cert-manager/internal-wildcard-certificate.yaml | envsubst | kubectl apply -f -
@@ -60,8 +83,8 @@ echo "Wildcard certificate creation initiated. This may take some time to comple
 
 # Wait for the certificates to be issued (with a timeout)
 echo "Waiting for wildcard certificates to be ready (this may take several minutes)..."
-kubectl wait --for=condition=Ready certificate wildcard-internal-sovereign-cloud -n cert-manager --timeout=300s || true
-kubectl wait --for=condition=Ready certificate wildcard-sovereign-cloud -n cert-manager --timeout=300s || true
+kubectl wait --for=condition=Ready certificate wildcard-internal-wild-cloud -n cert-manager --timeout=300s || true
+kubectl wait --for=condition=Ready certificate wildcard-wild-cloud -n cert-manager --timeout=300s || true
 
 echo "cert-manager setup complete!"
 echo ""
