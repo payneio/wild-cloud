@@ -1,0 +1,112 @@
+#!/bin/bash
+set -e
+
+# Default values
+APP_NAME=""
+DRY_RUN=false
+
+# Source environment variables from load-env.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$REPO_DIR/load-env.sh" ]; then
+  source "$REPO_DIR/load-env.sh"
+fi
+
+function show_help {
+  echo "Usage: $0 APP_NAME [options]"
+  echo ""
+  echo "Arguments:"
+  echo "  APP_NAME               Name of the app to deploy (directory name in apps/)"
+  echo ""
+  echo "Optional arguments:"
+  echo "  --dry-run              Preview the processed configuration without applying"
+  echo "  --help                 Show this help message"
+  echo ""
+  echo "Examples:"
+  echo "  $0 immich"
+  echo "  $0 nextcloud --dry-run"
+  exit 1
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --help)
+      show_help
+      ;;
+    -*)
+      echo "Unknown option: $1"
+      show_help
+      ;;
+    *)
+      # First non-option argument is the app name
+      APP_NAME="$1"
+      shift
+      ;;
+  esac
+done
+
+# Validate app name
+if [[ -z "$APP_NAME" ]]; then
+  echo "Error: APP_NAME must be provided"
+  show_help
+fi
+
+# Check if app directory exists
+APP_DIR="$REPO_DIR/apps/$APP_NAME"
+if [[ ! -d "$APP_DIR" ]]; then
+  echo "Error: App directory not found: $APP_DIR"
+  exit 1
+fi
+
+# Check if kustomization.yaml exists
+if [[ ! -f "$APP_DIR/kustomization.yaml" ]]; then
+  echo "Error: kustomization.yaml not found in $APP_DIR"
+  exit 1
+fi
+
+echo "Deploying app: $APP_NAME"
+
+# Step 1: Generate config files
+if [[ -f "$APP_DIR/config/.env" ]]; then
+  echo "Step 1: Generating config files..."
+  "$SCRIPT_DIR/generate-config" "$APP_NAME"
+else
+  echo "Step 1: No .env file found, skipping config generation"
+fi
+
+# Handle dry run mode
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "Step 2: Dry-run mode - showing kustomize output:"
+  kubectl kustomize "$APP_DIR"
+  exit 0
+fi
+
+# Step 2: Extract namespace from kustomization
+echo "Step 2: Extracting namespace from kustomization..."
+NAMESPACE=$(kubectl kustomize "$APP_DIR" | grep -o "namespace: [a-zA-Z0-9_-]\+" | head -1 | cut -d' ' -f2)
+if [[ -n "$NAMESPACE" ]]; then
+  echo "Found namespace: $NAMESPACE"
+  
+  # Create the namespace if it doesn't exist
+  echo "Creating namespace $NAMESPACE if it doesn't exist..."
+  kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+  
+  # Step 3: Copy TLS certificates to the namespace
+  echo "Step 3: Copying TLS certificates to namespace $NAMESPACE..."
+  "$SCRIPT_DIR/copy-secret" cert-manager:wildcard-internal-wild-cloud-tls "$NAMESPACE" || echo "Warning: Failed to copy internal wildcard certificate"
+  "$SCRIPT_DIR/copy-secret" cert-manager:wildcard-wild-cloud-tls "$NAMESPACE" || echo "Warning: Failed to copy external wildcard certificate"
+else
+  echo "Warning: No namespace found in kustomization, using default namespace"
+fi
+
+# Step 4: Apply the app configuration
+echo "Step 4: Applying app configuration..."
+kubectl apply -k "$APP_DIR"
+
+echo "✅ App '$APP_NAME' deployed successfully!"
