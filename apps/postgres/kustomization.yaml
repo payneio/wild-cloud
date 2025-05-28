@@ -6,20 +6,13 @@ labels:
     pairs:
       app: postgres
       managedBy: kustomize
-      partOf: sovereign-cloud
+      partOf: wild-cloud
 resources:
+  - config
   - deployment.yaml
   - namespace.yaml
   - service.yaml
   - pvc.yaml
-configMapGenerator:
-  - name: config
-    envs:
-      - config/config.env
-secretGenerator:
-  - name: secrets
-    envs:
-      - config/secrets.env
 
 replacements:
   - source:
