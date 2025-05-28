@@ -128,8 +128,8 @@ if [[ -n "$NAMESPACE" ]]; then
   echo "Creating namespace $NAMESPACE if it doesn't exist..."
   kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
   # Copy certificates to the namespace
-  copy-secret cert-manager:wildcard-internal-sovereign-cloud-tls $NAMESPACE
-  copy-secret cert-manager:wildcard-sovereign-cloud-tls $NAMESPACE
+  copy-secret cert-manager:wildcard-internal-wild-cloud-tls $NAMESPACE
+  copy-secret cert-manager:wildcard-wild-cloud-tls $NAMESPACE
 fi
 
 # Apply the service
