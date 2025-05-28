@@ -4,7 +4,9 @@ kind: Ingress
 metadata:
   name: nextcloud-public
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: nextcloud-headers@kubernetescrd,nextcloud-redirects@kubernetescrd
+    external-dns.alpha.kubernetes.io/target: your.nextcloud.domain
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    traefik.ingress.kubernetes.io/router.middlewares: nextcloud-nextcloud-headers@kubernetescrd,nextcloud-nextcloud-redirects-scheme@kubernetescrd,nextcloud-nextcloud-redirects-regex@kubernetescrd
 spec:
   rules:
     - host: your.nextcloud.domain

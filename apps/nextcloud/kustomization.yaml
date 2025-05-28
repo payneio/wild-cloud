@@ -28,11 +28,21 @@ replacements:
   - source:
       kind: ConfigMap
       name: config
+      fieldPath: data.DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: nextcloud-public
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/target]
+  - source:
+      kind: ConfigMap
+      name: config
       fieldPath: data.NEXTCLOUD_DOMAIN
     targets:
       - select:
           kind: Ingress
-          name: nextcloud-ingress
+          name: nextcloud-public
         fieldPaths:
           - spec.rules.0.host
           - spec.tls.0.hosts.0
@@ -56,3 +66,18 @@ replacements:
           name: nextcloud-pvc
         fieldPaths:
           - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.NEXTCLOUD_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: nextcloud
+        fieldPaths:
+          - spec.template.spec.containers.0.image
+      - select:
+          kind: CronJob
+          name: nextcloud-cron
+        fieldPaths:
+          - spec.jobTemplate.spec.template.spec.containers.0.image

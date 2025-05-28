@@ -14,12 +14,19 @@ spec:
 apiVersion: traefik.containo.us/v1alpha1
 kind: Middleware
 metadata:
-  name: nextcloud-redirects
+  name: nextcloud-redirects-scheme
   namespace: nextcloud
 spec:
   redirectScheme:
     permanent: true
     scheme: https
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: nextcloud-redirects-regex
+  namespace: nextcloud
+spec:
   redirectRegex:
     regex: https://(.*)/.well-known/(card|cal)dav
     replacement: https://$1/remote.php/dav/

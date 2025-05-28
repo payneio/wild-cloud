@@ -26,7 +26,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: nextcloud-secrets
+                name: secrets
             - configMapRef:
                 name: config
             - secretRef:
@@ -41,28 +41,28 @@ spec:
             - name: NEXTCLOUD_TRUSTED_DOMAINS
               valueFrom:
                 configMapKeyRef:
-                  key: DOMAIN
+                  key: NEXTCLOUD_TRUSTED_DOMAINS
                   name: config
             - name: NEXTCLOUD_DATA_DIR
               value: /mnt/data
             - name: TRUSTED_PROXIES
               valueFrom:
                 configMapKeyRef:
-                  key: DOMAIN
+                  key: NEXTCLOUD_DOMAIN
                   name: config
             - name: APACHE_DISABLE_REWRITE_IP
               value: "1"
             - name: OVERWRITEHOST
               valueFrom:
                 configMapKeyRef:
-                  key: DOMAIN
+                  key: NEXTCLOUD_DOMAIN
                   name: config
             - name: OVERWRITEPROTOCOL
               value: https
             - name: OVERWRITECLIURL
               valueFrom:
                 configMapKeyRef:
-                  key: DOMAIN_URL
+                  key: NEXTCLOUD_DOMAIN_URL
                   name: config
             - name: OVERWRITEWEBROOT
               value: "/"

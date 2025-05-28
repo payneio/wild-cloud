@@ -11,14 +11,14 @@ spec:
         spec:
           containers:
             - name: nextcloud
-              image: nextcloud:25.0.3-apache
+              image: nextcloud:REPLACEME
               imagePullPolicy: IfNotPresent
               env:
                 - name: NEXTCLOUD_URL
                   valueFrom:
                     configMapKeyRef:
                       name: config
-                      key: DOMAIN_URL
+                      key: NEXTCLOUD_DOMAIN_URL
               command:
                 - /bin/sh
                 - -c

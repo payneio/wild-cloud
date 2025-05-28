@@ -12,8 +12,8 @@ spec:
           args:
             - |
               PGPASSWORD=${POSTGRES_ADMIN_PASSWORD} psql -h ${NEXTCLOUD_DB_HOST} -U postgres <<EOF
-              CREATE DATABASE ${NEXTCLOUD_DB_NAME} WITH OWNER ${NEXTCLOUD_DB_USER};
               CREATE USER ${NEXTCLOUD_DB_USER} WITH ENCRYPTED PASSWORD '${NEXTCLOUD_DB_PASSWORD}';
+              CREATE DATABASE ${NEXTCLOUD_DB_NAME} WITH OWNER ${NEXTCLOUD_DB_USER};
               GRANT ALL PRIVILEGES ON DATABASE ${NEXTCLOUD_DB_NAME} TO ${NEXTCLOUD_DB_USER};
               EOF
           env:
@@ -22,6 +22,11 @@ spec:
                 secretKeyRef:
                   name: secrets
                   key: POSTGRES_ADMIN_PASSWORD
+            - name: NEXTCLOUD_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: config
+                  key: NEXTCLOUD_DB_HOST
             - name: NEXTCLOUD_DB_NAME
               valueFrom:
                 configMapKeyRef:
