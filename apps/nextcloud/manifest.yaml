@@ -1,8 +1,0 @@
-name: nextcloud
-install: true
-description: Nextcloud is a suite of client-server software for creating and using file hosting services.
-version: 1.0.0
-icon: https://nextcloud.com/wp-content/uploads/2022/10/nextcloud-logo-blue-transparent.svg
-requires:
-  - name: redis
-  - name: postgres
