@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-db-init
+spec:
+  template:
+    spec:
+      containers:
+        - name: db-init
+          image: postgres:15
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              PGPASSWORD=${POSTGRES_ADMIN_PASSWORD} psql -h ${DB_HOSTNAME} -U postgres <<EOF
+              DO \$\$
+              BEGIN
+                IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_USERNAME}') THEN
+                  CREATE USER ${DB_USERNAME} WITH ENCRYPTED PASSWORD '${DB_PASSWORD}';
+                ELSE
+                  ALTER USER ${DB_USERNAME} WITH ENCRYPTED PASSWORD '${DB_PASSWORD}';
+                END IF;
+              END
+              \$\$;
+              
+              SELECT 'CREATE DATABASE ${DB_DATABASE_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_DATABASE_NAME}')\gexec
+              ALTER DATABASE ${DB_DATABASE_NAME} OWNER TO ${DB_USERNAME};
+              GRANT ALL PRIVILEGES ON DATABASE ${DB_DATABASE_NAME} TO ${DB_USERNAME};
+              EOF
+              
+              # Connect to the immich database and enable required extensions
+              PGPASSWORD=${POSTGRES_ADMIN_PASSWORD} psql -h ${DB_HOSTNAME} -U postgres -d ${DB_DATABASE_NAME} <<EOF
+              CREATE EXTENSION IF NOT EXISTS vector;
+              CREATE EXTENSION IF NOT EXISTS cube;
+              CREATE EXTENSION IF NOT EXISTS earthdistance;
+              EOF
+          env:
+            - name: POSTGRES_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secrets
+                  key: POSTGRES_ADMIN_PASSWORD
+            - name: DB_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: config
+                  key: DB_HOSTNAME
+            - name: DB_DATABASE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: config
+                  key: DB_DATABASE_NAME
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: config
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secrets
+                  key: DB_PASSWORD
+      restartPolicy: OnFailure

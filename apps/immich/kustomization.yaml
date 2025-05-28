@@ -1,0 +1,87 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: immich
+labels:
+  - includeSelectors: true
+    pairs:
+      app: immich
+      managedBy: kustomize
+      partOf: sovereign-cloud
+resources:
+  - deployment.yaml
+  - ingress.yaml
+  - namespace.yaml
+  - pvc.yaml
+  - service.yaml
+  - init/
+configMapGenerator:
+  - name: config
+    envs:
+      - config/config.env
+secretGenerator:
+  - name: secrets
+    envs:
+      - config/secrets.env
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: immich-public
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/target]
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.IMMICH_DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: immich-public
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.IMMICH_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: immich-pvc
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.IMMICH_CACHE_STORAGE
+    targets:
+      - select:
+          kind: PersistentVolumeClaim
+          name: immich-cache-pvc
+        fieldPaths:
+          - spec.resources.requests.storage
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.IMMICH_SERVER_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: immich-server
+        fieldPaths:
+          - spec.template.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.IMMICH_ML_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: immich-machine-learning
+        fieldPaths:
+          - spec.template.spec.containers.0.image

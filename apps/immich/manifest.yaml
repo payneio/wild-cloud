@@ -1,0 +1,8 @@
+name: immich
+install: true
+description: Immich is a self-hosted photo and video backup solution that allows you to store, manage, and share your media files securely.
+version: 1.0.0
+icon: https://immich.app/assets/images/logo.png
+requires:
+  - name: redis
+  - name: postgres

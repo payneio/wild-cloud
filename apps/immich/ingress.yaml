@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: immich-public
+  annotations:
+    external-dns.alpha.kubernetes.io/target: your.immich.domain
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  rules:
+    - host: your.immich.domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: immich-server
+                port:
+                  number: 3001
+  tls:
+    - secretName: wildcard-internal-sovereign-cloud-tls
+      hosts:
+        - your.immich.domain
