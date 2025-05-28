@@ -1,0 +1,174 @@
+#!/bin/bash
+set -e
+
+# Default values
+APP_NAME=""
+KEEP_RESOURCES=false
+FOLLOW_LOGS=false
+TIMEOUT=120
+
+# Source environment variables from load-env.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$REPO_DIR/load-env.sh" ]; then
+  source "$REPO_DIR/load-env.sh"
+fi
+
+function show_help {
+  echo "Usage: $0 APP_NAME [options]"
+  echo ""
+  echo "Run diagnostic tests for an application."
+  echo ""
+  echo "Arguments:"
+  echo "  APP_NAME               Name of the app to diagnose (must have apps/APP_NAME/doctor/ directory)"
+  echo ""
+  echo "Optional arguments:"
+  echo "  --keep                 Keep diagnostic resources after completion (don't auto-cleanup)"
+  echo "  --follow               Follow logs in real-time instead of waiting for completion"
+  echo "  --timeout SECONDS      Timeout for job completion (default: 120 seconds)"
+  echo "  --help                 Show this help message"
+  echo ""
+  echo "Examples:"
+  echo "  $0 postgres"
+  echo "  $0 postgres --follow"
+  echo "  $0 postgres --keep --timeout 300"
+  echo ""
+  echo "Available doctors:"
+  for doctor_dir in "$REPO_DIR/apps"/*/doctor; do
+    if [ -d "$doctor_dir" ]; then
+      app=$(basename "$(dirname "$doctor_dir")")
+      echo "  - $app"
+    fi
+  done
+  exit 1
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+    --keep)
+      KEEP_RESOURCES=true
+      shift
+      ;;
+    --follow)
+      FOLLOW_LOGS=true
+      shift
+      ;;
+    --timeout)
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --help)
+      show_help
+      ;;
+    -*)
+      echo "Unknown option: $1"
+      show_help
+      ;;
+    *)
+      # First non-option argument is the app name
+      if [[ -z "$APP_NAME" ]]; then
+        APP_NAME="$1"
+      else
+        echo "Error: Multiple app names provided"
+        show_help
+      fi
+      shift
+      ;;
+  esac
+done
+
+# Validate app name
+if [[ -z "$APP_NAME" ]]; then
+  echo "Error: APP_NAME must be provided"
+  show_help
+fi
+
+# Check if doctor directory exists
+DOCTOR_DIR="$REPO_DIR/apps/$APP_NAME/doctor"
+if [[ ! -d "$DOCTOR_DIR" ]]; then
+  echo "Error: Doctor directory not found: $DOCTOR_DIR"
+  echo ""
+  echo "Available doctors:"
+  for doctor_dir in "$REPO_DIR/apps"/*/doctor; do
+    if [ -d "$doctor_dir" ]; then
+      app=$(basename "$(dirname "$doctor_dir")")
+      echo "  - $app"
+    fi
+  done
+  exit 1
+fi
+
+# Check if kustomization.yaml exists
+if [[ ! -f "$DOCTOR_DIR/kustomization.yaml" ]]; then
+  echo "Error: kustomization.yaml not found in $DOCTOR_DIR"
+  exit 1
+fi
+
+echo "🩺 Running diagnostics for: $APP_NAME"
+echo "📂 Doctor directory: $DOCTOR_DIR"
+echo
+
+# Function to cleanup resources
+cleanup_doctor() {
+  if [[ "$KEEP_RESOURCES" == "false" ]]; then
+    echo "🧹 Cleaning up diagnostic resources..."
+    kubectl delete -k "$DOCTOR_DIR" 2>/dev/null || echo "   (No resources to clean up)"
+  else
+    echo "📌 Keeping diagnostic resources (--keep flag specified)"
+    echo "   To manually cleanup later: kubectl delete -k $DOCTOR_DIR"
+  fi
+}
+
+# Set up cleanup trap
+trap cleanup_doctor EXIT
+
+# Extract namespace and job name before applying
+NAMESPACE=$(kubectl kustomize "$DOCTOR_DIR" | grep -o "namespace: [a-zA-Z0-9_-]\+" | head -1 | cut -d' ' -f2)
+if [[ -z "$NAMESPACE" ]]; then
+  echo "Warning: Could not determine namespace, using default"
+  NAMESPACE="default"
+fi
+
+JOB_NAME=$(kubectl kustomize "$DOCTOR_DIR" | awk '/kind: Job/{flag=1} flag && /name:/{print $2; flag=0}' | head -1)
+if [[ -z "$JOB_NAME" ]]; then
+  echo "Error: Could not find job name in kustomization"
+  exit 1
+fi
+
+# Delete existing job if it exists (to avoid conflicts)
+kubectl delete job "$JOB_NAME" -n "$NAMESPACE" 2>/dev/null || true
+
+# Apply the doctor kustomization
+echo "🚀 Deploying diagnostic resources..."
+kubectl apply -k "$DOCTOR_DIR"
+
+echo "📊 Monitoring job: $JOB_NAME (namespace: $NAMESPACE)"
+
+if [[ "$FOLLOW_LOGS" == "true" ]]; then
+  echo "📝 Following logs in real-time (Ctrl+C to stop)..."
+  echo "────────────────────────────────────────────────────────────────"
+  # Wait a moment for the pod to be created
+  sleep 5
+  kubectl logs -f "job/$JOB_NAME" -n "$NAMESPACE" || echo "Failed to follow logs (job may not be ready yet)"
+else
+  # Wait for job completion
+  echo "⏳ Waiting for diagnostics to complete (timeout: ${TIMEOUT}s)..."
+  kubectl wait --for=condition=complete "job/$JOB_NAME" -n "$NAMESPACE" --timeout="${TIMEOUT}s" || {
+    echo "⚠️  Job did not complete within ${TIMEOUT} seconds"
+    echo "📝 Showing current logs:"
+    echo "────────────────────────────────────────────────────────────────"
+    kubectl logs "job/$JOB_NAME" -n "$NAMESPACE" 2>/dev/null || echo "Could not retrieve logs"
+    exit 1
+  }
+
+  # Show the results
+  echo "✅ Diagnostics completed successfully!"
+  echo "📝 Results:"
+  echo "────────────────────────────────────────────────────────────────"
+  kubectl logs "job/$JOB_NAME" -n "$NAMESPACE"
+fi
+
+echo "────────────────────────────────────────────────────────────────"
+echo "🎉 Diagnostics for $APP_NAME completed!"
