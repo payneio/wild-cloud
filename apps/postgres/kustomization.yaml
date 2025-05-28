@@ -32,3 +32,13 @@ replacements:
         select:
           kind: PersistentVolumeClaim
           name: postgresql-pvc
+  - source:
+      kind: ConfigMap
+      name: config
+      fieldPath: data.POSTGRES_IMAGE
+    targets:
+      - fieldPaths:
+          - spec.template.spec.containers.0.image
+        select:
+          kind: Deployment
+          name: postgres-deployment
