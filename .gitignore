@@ -10,5 +10,5 @@ CLAUDE.md
 **/.claude/settings.local.json
 
 # Sovereign Cloud
-apps/**/config/secrets.env
-apps/**/config/config.env
+**/config/secrets.env
+**/config/config.env
