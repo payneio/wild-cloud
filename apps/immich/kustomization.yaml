@@ -8,7 +8,9 @@ labels:
       managedBy: kustomize
       partOf: wild-cloud
 resources:
-  - deployment.yaml
+  - deployment-server.yaml
+  - deployment-machine-learning.yaml
+  - deployment-microservices.yaml
   - ingress.yaml
   - namespace.yaml
   - pvc.yaml

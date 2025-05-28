@@ -1,0 +1,52 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: immich-server
+        component: server
+    spec:
+      containers:
+        - image: ghcr.io/immich-app/immich-server:release
+          name: immich-server
+          ports:
+            - containerPort: 2283
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: secrets
+            - configMapRef:
+                name: config
+          env:
+            - name: REDIS_HOSTNAME
+              value: redis.redis.svc.cluster.local
+            - name: DB_HOSTNAME
+              value: postgres.postgres.svc.cluster.local
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  key: TZ
+                  name: config
+            - name: IMMICH_WORKERS_EXCLUDE
+              value: microservices
+          volumeMounts:
+            - mountPath: /usr/src/app/upload
+              name: immich-storage
+              readOnly: false
+      volumes:
+        - name: immich-storage
+          persistentVolumeClaim:
+            claimName: immich-pvc

@@ -1,0 +1,39 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-machine-learning
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-machine-learning
+  template:
+    metadata:
+      labels:
+        app: immich-machine-learning
+        component: machine-learning
+    spec:
+      containers:
+        - image: ghcr.io/immich-app/immich-machine-learning:release
+          name: immich-machine-learning
+          ports:
+            - containerPort: 3003
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: config
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  key: TZ
+                  name: config
+          volumeMounts:
+            - mountPath: /cache
+              name: immich-cache
+              readOnly: false
+      volumes:
+        - name: immich-cache
+          persistentVolumeClaim:
+            claimName: immich-cache-pvc
