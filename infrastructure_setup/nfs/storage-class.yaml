@@ -1,0 +1,10 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs
+provisioner: nfs
+parameters:
+  server: REPLACE_ME
+  path: REPLACE_ME
+reclaimPolicy: Retain
+allowVolumeExpansion: true

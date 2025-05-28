@@ -25,7 +25,7 @@ spec:
             - --source=ingress
             - --txt-owner-id=${OWNER_ID}
             - --provider=cloudflare
-            - --domain-filter=${DOMAIN}
+            - --domain-filter=payne.io
             #- --exclude-domains=internal.${DOMAIN}
             - --cloudflare-dns-records-per-page=5000
             - --publish-internal-services

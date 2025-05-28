@@ -35,9 +35,11 @@ chmod +x *.sh
 # Setup Kubernetes Dashboard
 ./setup-dashboard.sh
 
+# Setup NFS Kubernetes integration (optional)
+./setup-nfs.sh
+
 # Setup Docker Registry
 ./setup-registry.sh
-kubectl apply -k docker-registry
 
 echo "Infrastructure setup complete!"
 echo
