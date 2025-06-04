@@ -40,7 +40,7 @@ K3s provides a fully-compliant Kubernetes distribution in a small footprint:
 
 ```bash
 # Install K3s without the default load balancer (we'll use MetalLB)
-curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode=644 --disable servicelb
+curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode=644 --disable servicelb --disable metallb
 
 # Set up kubectl configuration
 mkdir -p ~/.kube
