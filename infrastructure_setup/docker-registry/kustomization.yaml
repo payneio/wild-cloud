@@ -15,7 +15,7 @@ resources:
 configMapGenerator:
   - name: docker-registry-config
     envs:
-      - config.env
+      - config/config.env
 replacements:
   - source:
       kind: ConfigMap
