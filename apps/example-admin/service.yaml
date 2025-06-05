@@ -1,0 +1,83 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-admin
+  namespace: example-admin
+  labels:
+    app: example-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-admin
+  template:
+    metadata:
+      labels:
+        app: example-admin
+    spec:
+      containers:
+        - name: example-admin
+          image: nginx:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          env:
+            - name: ENV_VARIABLE
+              value: "ENV_VALUE"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-admin
+  namespace: example-admin
+  labels:
+    app: example-admin
+spec:
+  selector:
+    app: example-admin
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-admin
+  namespace: example-admin
+spec:
+  rules:
+    - host: example-admin.internal.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: example-admin
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - example-admin.internal.${DOMAIN}
+      secretName: wildcard-internal-wild-cloud-tls

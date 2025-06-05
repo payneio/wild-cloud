@@ -4,19 +4,19 @@ metadata:
   name: ghost
   namespace: ghost
   uid: d01c62ff-68a6-456a-a630-77c730bffc9b
-  resourceVersion: '2772014'
+  resourceVersion: "2772014"
   generation: 1
-  creationTimestamp: '2025-04-27T02:01:30Z'
+  creationTimestamp: "2025-04-27T02:01:30Z"
   labels:
     app.kubernetes.io/component: ghost
     app.kubernetes.io/instance: ghost
-    app.kubernetes.io/managed-by: Sovereign
+    app.kubernetes.io/managed-by: Wild
     app.kubernetes.io/name: ghost
     app.kubernetes.io/version: 5.118.1
   annotations:
-    deployment.kubernetes.io/revision: '1'
+    deployment.kubernetes.io/revision: "1"
     meta.helm.sh/release-name: ghost
-    meta.helm.sh/release-namespace: ghost  
+    meta.helm.sh/release-namespace: ghost
 spec:
   replicas: 1
   selector:
@@ -29,7 +29,7 @@ spec:
       labels:
         app.kubernetes.io/component: ghost
         app.kubernetes.io/instance: ghost
-        app.kubernetes.io/managed-by: Sovereign
+        app.kubernetes.io/managed-by: Wild
         app.kubernetes.io/name: ghost
         app.kubernetes.io/version: 5.118.1
       annotations:
@@ -55,7 +55,7 @@ spec:
           command:
             - /bin/bash
           args:
-            - '-ec'
+            - "-ec"
             - >
               #!/bin/bash
 
@@ -109,13 +109,13 @@ spec:
               protocol: TCP
           env:
             - name: BITNAMI_DEBUG
-              value: 'false'
+              value: "false"
             - name: ALLOW_EMPTY_PASSWORD
-              value: 'yes'
+              value: "yes"
             - name: GHOST_DATABASE_HOST
               value: ghost-mysql
             - name: GHOST_DATABASE_PORT_NUMBER
-              value: '3306'
+              value: "3306"
             - name: GHOST_DATABASE_NAME
               value: ghost
             - name: GHOST_DATABASE_USER
@@ -125,7 +125,7 @@ spec:
             - name: GHOST_HOST
               value: blog.cloud.payne.io/
             - name: GHOST_PORT_NUMBER
-              value: '2368'
+              value: "2368"
             - name: GHOST_USERNAME
               value: admin
             - name: GHOST_PASSWORD_FILE
@@ -135,13 +135,13 @@ spec:
             - name: GHOST_BLOG_TITLE
               value: User's Blog
             - name: GHOST_ENABLE_HTTPS
-              value: 'yes'
+              value: "yes"
             - name: GHOST_EXTERNAL_HTTP_PORT_NUMBER
-              value: '80'
+              value: "80"
             - name: GHOST_EXTERNAL_HTTPS_PORT_NUMBER
-              value: '443'
+              value: "443"
             - name: GHOST_SKIP_BOOTSTRAP
-              value: 'no'
+              value: "no"
           resources:
             limits:
               cpu: 375m
@@ -236,14 +236,14 @@ status:
   unavailableReplicas: 1
   conditions:
     - type: Available
-      status: 'False'
-      lastUpdateTime: '2025-04-27T02:01:30Z'
-      lastTransitionTime: '2025-04-27T02:01:30Z'
+      status: "False"
+      lastUpdateTime: "2025-04-27T02:01:30Z"
+      lastTransitionTime: "2025-04-27T02:01:30Z"
       reason: MinimumReplicasUnavailable
       message: Deployment does not have minimum availability.
     - type: Progressing
-      status: 'False'
-      lastUpdateTime: '2025-04-27T02:11:32Z'
-      lastTransitionTime: '2025-04-27T02:11:32Z'
+      status: "False"
+      lastUpdateTime: "2025-04-27T02:11:32Z"
+      lastTransitionTime: "2025-04-27T02:11:32Z"
       reason: ProgressDeadlineExceeded
       message: ReplicaSet "ghost-586bbc6ddd" has timed out progressing.

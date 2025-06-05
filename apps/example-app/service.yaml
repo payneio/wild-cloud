@@ -1,0 +1,93 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-app
+  namespace: default
+  labels:
+    app: example-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-app
+  template:
+    metadata:
+      labels:
+        app: example-app
+    spec:
+      containers:
+        - name: example-app
+          image: nginx:alpine
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          env:
+            - name: ENV_VARIABLE
+              value: "ENV_VALUE"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-app
+  namespace: default
+  labels:
+    app: example-app
+spec:
+  selector:
+    app: example-app
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-app
+  namespace: default
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "${DOMAIN}"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+
+    # Optional: Enable HTTPS redirection
+    traefik.ingress.kubernetes.io/redirect-entry-point: https
+
+    # Optional: Enable basic auth
+    # traefik.ingress.kubernetes.io/auth-type: basic
+    # traefik.ingress.kubernetes.io/auth-secret: basic-auth
+spec:
+  rules:
+    - host: example-app.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: example-app
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - example-app.${DOMAIN}
+      secretName: wildcard-wild-cloud-tls
