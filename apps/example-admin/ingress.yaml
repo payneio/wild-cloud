@@ -1,0 +1,22 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-admin
+  namespace: example-admin
+spec:
+  rules:
+    - host: example-admin.{{ (ds "config").cloud.internalDomain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: example-admin
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - example-admin.{{ (ds "config").cloud.internalDomain }}
+      secretName: wildcard-internal-wild-cloud-tls

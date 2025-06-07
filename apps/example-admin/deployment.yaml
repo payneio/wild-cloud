@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-admin
+  namespace: example-admin
+  labels:
+    app: example-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-admin
+  template:
+    metadata:
+      labels:
+        app: example-admin
+    spec:
+      containers:
+        - name: example-admin
+          image: nginx:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: 500m
+              memory: 50Mi
+            requests:
+              cpu: 100m
+              memory: 10Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
