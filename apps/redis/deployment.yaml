@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: redis
+  name: redis-deployment
 spec:
   selector:
     matchLabels:
@@ -14,17 +14,11 @@ spec:
         app: redis
     spec:
       containers:
-        - image: redis:alpine
+        - image: "{{ .config.apps.redis.image }}"
           name: redis
           ports:
-            - containerPort: 6379
+            - containerPort: {{ .config.apps.redis.port }}
           env:
             - name: TZ
-              valueFrom:
-                configMapKeyRef:
-                  name: config
-                  key: TZ
-          envFrom:
-            - configMapRef:
-                name: config
+              value: "{{ .config.apps.redis.timezone }}"
       restartPolicy: Always
