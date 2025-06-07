@@ -3,3 +3,11 @@ install: true
 description: PostgreSQL is a powerful, open source object-relational database system.
 version: 1.0.0
 icon: https://www.postgresql.org/media/img/about/press/elephant.png
+defaultConfig:
+  database: postgres
+  user: postgres
+  storage: 10Gi
+  image: pgvector/pgvector:pg15
+  timezone: UTC
+requiredSecrets:
+  - apps.postgres.password

@@ -15,29 +15,36 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: pgvector/pgvector:pg15
-          args: [
-            "-c", "tcp_keepalives_idle=600",
-            "-c", "tcp_keepalives_interval=30", 
-            "-c", "tcp_keepalives_count=3",
-            "-c", "statement_timeout=300000",
-            "-c", "idle_in_transaction_session_timeout=600000"
-          ]
+          image: "{{ .config.apps.postgres.image }}"
+          args:
+            [
+              "-c",
+              "tcp_keepalives_idle=600",
+              "-c",
+              "tcp_keepalives_interval=30",
+              "-c",
+              "tcp_keepalives_count=3",
+              "-c",
+              "statement_timeout=300000",
+              "-c",
+              "idle_in_transaction_session_timeout=600000",
+            ]
           ports:
             - containerPort: 5432
-          envFrom:
-            - secretRef:
-                name: secrets
-            - configMapRef:
-                name: config
           env:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
             - name: TZ
+              value: "{{ .config.apps.postgres.timezone }}"
+            - name: POSTGRES_DB
+              value: "{{ .config.apps.postgres.database }}"
+            - name: POSTGRES_USER
+              value: "{{ .config.apps.postgres.user }}"
+            - name: POSTGRES_PASSWORD
               valueFrom:
-                configMapKeyRef:
-                  name: config
-                  key: TZ
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: password
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
