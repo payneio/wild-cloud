@@ -1,0 +1,34 @@
+wildcloud:
+  # You can also use a local path for the repository such as /home/adam/repos/wild-cloud
+  repository: https://github.com/payneio/wild-cloud
+operator:
+  email: adam@adam.tld
+cloud:
+  domain: cloud.adam.tld
+  internalDomain: internal.cloud.adam.tld
+  dockerRegistryHost: docker-registry.internal.cloud.adam.tld
+  tz: America/Los_Angeles
+  router:
+    dynamicDns: <dynamic dns addresses> # Some routers provide this.
+    ip: 192.168.8.1
+  nfs:
+    host: box-01
+    mediaPath: /data/media
+    storageCapacity: 250Gi
+  dns:
+    ip: 192.168.8.218
+  dhcpRange: 192.168.8.100,192.168.8.239
+  dnsmasqInterface: enp5s0
+cluster:
+  endpoint: computer-01
+  endpointIp: 192.168.8.241
+  kubeConfig: /home/adam/.kube/config
+  loadBalancerRange: 192.168.8.240-192.168.8.250
+  dashboard:
+    adminUsername: admin
+  certManager:
+    namespace: cert-manager
+    cloudflare:
+      apiToken: <cloudflare api token>
+      domain: adam.tld
+      ownerId: cloud-adam-cluster
