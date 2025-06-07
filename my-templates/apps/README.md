@@ -10,20 +10,39 @@ To list all available apps:
 wild-cloud-app-list
 ```
 
-To add a new app:
+### App Workflow
+
+The Wild-cloud app workflow consists of three steps:
+
+1. **Fetch** - Download raw app templates to cache
+2. **Config** - Apply your local configuration to templates  
+3. **Deploy** - Deploy configured app to Kubernetes
+
+### Commands
+
+To fetch an app template to cache:
 
 ```bash
-wild-cloud-add <app>
+wild-app-fetch <app>
 ```
 
-To install the app:
+To apply your configuration to a cached app (automatically fetches if not cached):
 
 ```bash
-wild-cloud-install <app>
+wild-app-config <app>
 ```
 
-To update the app:
+To deploy a configured app to Kubernetes:
 
 ```bash
-TBD
+wild-app-deploy <app>
+```
+
+### Quick Setup
+
+For a complete app setup and deployment:
+
+```bash
+wild-app-config <app>  # Fetches if needed, then configures
+wild-app-deploy <app>  # Deploys to Kubernetes
 ```

@@ -34,57 +34,45 @@ if [ ! -d "${SOURCE_APP_DIR}" ]; then
     exit 1
 fi
 
-DEST_APP_DIR="apps/${APP_NAME}"
-mkdir -p "apps"
+CACHE_APP_DIR=".wildcloud/cache/apps/${APP_NAME}"
+mkdir -p ".wildcloud/cache/apps"
 
-if [ -d "${DEST_APP_DIR}" ]; then
-    echo "Warning: Destination directory ${DEST_APP_DIR} already exists"
+if [ -d "${CACHE_APP_DIR}" ]; then
+    echo "Warning: Cache directory ${CACHE_APP_DIR} already exists"
     read -p "Do you want to overwrite it? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled"
+        echo "Fetch cancelled"
         exit 1
     fi
-    rm -rf "${DEST_APP_DIR}"
+    rm -rf "${CACHE_APP_DIR}"
 fi
 
-echo "Copying app '${APP_NAME}' from ${SOURCE_APP_DIR} to ${DEST_APP_DIR}"
-
-# Function to process a file with gomplate if it's a YAML file
-process_file() {
-    local src_file="$1"
-    local dest_file="$2"
-    
-    if [[ "${src_file}" == *.yaml ]] || [[ "${src_file}" == *.yml ]]; then
-        echo "Processing YAML file: ${dest_file}"
-        gomplate -d config=.wildcloud/config.yaml -f "${src_file}" > "${dest_file}"
-    else
-        cp "${src_file}" "${dest_file}"
-    fi
-}
+echo "Fetching app '${APP_NAME}' from ${SOURCE_APP_DIR} to ${CACHE_APP_DIR}"
 
 # Create destination directory
-mkdir -p "${DEST_APP_DIR}"
+mkdir -p "${CACHE_APP_DIR}"
 
-# Copy directory structure and process files
+# Copy directory structure and files (no template processing)
 find "${SOURCE_APP_DIR}" -type d | while read -r src_dir; do
     rel_path="${src_dir#${SOURCE_APP_DIR}}"
     rel_path="${rel_path#/}"  # Remove leading slash if present
     if [ -n "${rel_path}" ]; then
-        mkdir -p "${DEST_APP_DIR}/${rel_path}"
+        mkdir -p "${CACHE_APP_DIR}/${rel_path}"
     fi
 done
 
 find "${SOURCE_APP_DIR}" -type f | while read -r src_file; do
     rel_path="${src_file#${SOURCE_APP_DIR}}"
     rel_path="${rel_path#/}"  # Remove leading slash if present
-    dest_file="${DEST_APP_DIR}/${rel_path}"
+    dest_file="${CACHE_APP_DIR}/${rel_path}"
     
     # Ensure destination directory exists
     dest_dir=$(dirname "${dest_file}")
     mkdir -p "${dest_dir}"
     
-    process_file "${src_file}" "${dest_file}"
+    # Simple copy without template processing
+    cp "${src_file}" "${dest_file}"
 done
 
-echo "Successfully installed app '${APP_NAME}' with template processing"
+echo "Successfully fetched app '${APP_NAME}' to cache"

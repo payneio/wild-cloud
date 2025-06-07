@@ -1,0 +1,52 @@
+#!/bin/bash
+
+set -e
+
+FORCE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN="--dry-run=client"
+            shift
+            ;;
+        -*)
+            echo "Unknown option $1"
+            echo "Usage: $0 <app_name> [--force] [--dry-run]"
+            exit 1
+            ;;
+        *)
+            if [ -z "${APP_NAME}" ]; then
+                APP_NAME="$1"
+            else
+                echo "Too many arguments"
+                echo "Usage: $0 <app_name> [--force] [--dry-run]"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "${APP_NAME}" ]; then
+    echo "Usage: $0 <app_name> [--force] [--dry-run]"
+    exit 1
+fi
+
+if [ ! -d "apps/${APP_NAME}" ]; then
+    echo "Error: App directory 'apps/${APP_NAME}' not found"
+    exit 1
+fi
+
+if [ "${FORCE}" = true ]; then
+    echo "Force deploying app '${APP_NAME}'"
+    kubectl replace --force -k "apps/${APP_NAME}" ${DRY_RUN:-}
+else
+    echo "Deploying app '${APP_NAME}'"
+    kubectl apply -k "apps/${APP_NAME}" ${DRY_RUN:-}
+fi
