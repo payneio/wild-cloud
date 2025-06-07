@@ -1,0 +1,118 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# Source environment variables
+source "${BASH_SOURCE%/*}/../load-env.sh" 2>/dev/null || true
+
+UPDATE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --update)
+            UPDATE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--update]"
+            echo ""
+            echo "Initialize a new Wild-Cloud project by copying scaffold files."
+            echo ""
+            echo "Options:"
+            echo "  --update    Update existing files with scaffold files (overwrite)"
+            echo "  -h, --help  Show this help message"
+            echo ""
+            echo "By default, this script will only run in an empty directory."
+            echo "Use --update to overwrite existing scaffold files while preserving other files."
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            echo "Usage: $0 [--update]"
+            exit 1
+            ;;
+        *)
+            echo "Unexpected argument: $1"
+            echo "Usage: $0 [--update]"
+            exit 1
+            ;;
+    esac
+done
+
+# Get the path to the Wild-Cloud repository (where this script is located)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WILDCLOUD_REPO="$(dirname "${SCRIPT_DIR}")"
+SCAFFOLD_DIR="${WILDCLOUD_REPO}/my-scaffold"
+
+if [ ! -d "${SCAFFOLD_DIR}" ]; then
+    echo "Error: Scaffold directory not found at ${SCAFFOLD_DIR}"
+    exit 1
+fi
+
+# Check if current directory is empty (unless --update is used)
+if [ "${UPDATE}" = false ]; then
+    # Check if directory has any files (including hidden files, excluding . and ..)
+    if [ -n "$(find . -maxdepth 1 -name ".*" -o -name "*" | grep -v "^\.$" | head -1)" ]; then
+        echo "Error: Current directory is not empty"
+        echo "Use --update flag to overwrite existing scaffold files while preserving other files"
+        exit 1
+    fi
+fi
+
+echo "Initializing Wild-Cloud project in $(pwd)"
+
+if [ "${UPDATE}" = true ]; then
+    echo "Updating scaffold files (preserving existing non-scaffold files)"
+else
+    echo "Copying scaffold files to empty directory"
+fi
+
+# Function to copy files and directories
+copy_scaffold() {
+    local src_dir="$1"
+    local dest_dir="$2"
+    
+    # Create destination directory if it doesn't exist
+    mkdir -p "${dest_dir}"
+    
+    # Copy directory structure
+    find "${src_dir}" -type d | while read -r src_subdir; do
+        rel_path="${src_subdir#${src_dir}}"
+        rel_path="${rel_path#/}"  # Remove leading slash if present
+        if [ -n "${rel_path}" ]; then
+            mkdir -p "${dest_dir}/${rel_path}"
+        fi
+    done
+    
+    # Copy files
+    find "${src_dir}" -type f | while read -r src_file; do
+        rel_path="${src_file#${src_dir}}"
+        rel_path="${rel_path#/}"  # Remove leading slash if present
+        dest_file="${dest_dir}/${rel_path}"
+        
+        # Ensure destination directory exists
+        dest_file_dir=$(dirname "${dest_file}")
+        mkdir -p "${dest_file_dir}"
+        
+        if [ "${UPDATE}" = true ] && [ -f "${dest_file}" ]; then
+            echo "Updating: ${rel_path}"
+        else
+            echo "Creating: ${rel_path}"
+        fi
+        
+        cp "${src_file}" "${dest_file}"
+    done
+}
+
+# Copy scaffold files to current directory
+copy_scaffold "${SCAFFOLD_DIR}" "."
+
+echo ""
+echo "Wild-Cloud project initialized successfully!"
+echo ""
+echo "Next steps:"
+echo "1. Review and customize the configuration files"
+echo "2. Set up your .wildcloud/config.yaml with your Wild-Cloud repository path"
+echo "3. Start using wild-app-* commands to manage your applications"

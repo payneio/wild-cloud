@@ -22,13 +22,14 @@ cloud:
 cluster:
   endpoint: computer-01
   endpointIp: 192.168.8.241
-  kubeConfig: /home/adam/.kube/config
+  kubernetes:
+    config: /home/adam/.kube/config
+    context: default
   loadBalancerRange: 192.168.8.240-192.168.8.250
   dashboard:
     adminUsername: admin
   certManager:
     namespace: cert-manager
     cloudflare:
-      apiToken: <cloudflare api token>
       domain: adam.tld
       ownerId: cloud-adam-cluster
