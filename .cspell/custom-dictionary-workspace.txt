@@ -31,3 +31,4 @@ traefik
 USEPATH
 vxlan
 websecure
+wildcloud

@@ -1,13 +1,18 @@
 # To Do
 
 - Look at all FIXME comments.
-- Finish Longhorn setup.
+- need to lock down w/ crowdsec (start an ops guide. follow ops discipline)
+- Finish dnsmasq setup
+- Create `wild-init` script.
+- Create `wild` golang cli.
 
 ## Infrastructure Setup Cleanup
 
+- Continue migrating from k3s to talos.
+- Continue converting infrastructure_setup to kustomize
 - Put Cloudflare-specific setup in a `dns_providers` directory.
 - Standardize metallb allocation in coredns-service.yaml and traefik-service.yaml.
-- Remove helm dependency in preference of kustomize.
+- Update setups to use kustomize patterns
 - Figure out Traefik IngressRoute CRD. Is it better than just Ingress? (dashboard uses IngressRoute currently, example-admin uses Ingress)
 - Standardize install methods
   - Remote yaml installs
@@ -23,17 +28,16 @@
 
 ## App packs to develop
 
-- Manager
+- Operator
   - Cockpit?
   - Databases ✅
   - Tailscale?
   - Backups.
-  - SSO?
+    - restic
+  - SSO
+    - zitadel
 - Productivity
-  - Nextcloud ✅
-    - Require 3 nodes for Longhorn.
-    - Consider https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner for nextcloud nfs storage.
-  - Jellyfin?
+  - books: librum
 - Communications Stack
   - Matrix/Synapse.
   - Email
@@ -43,3 +47,15 @@
     - Static web sites
 - Intelligence stack
   - Set up cloud to utilize GPUs.
+  - LLM: langfuse
+- Data stack
+  - mathesar (airtable)
+  - nocodb (airtable)
+  - Jupiter lab
+- Dev stack?
+  - faas: fx
+  - pass: kubero
+  - mobile-app-backend-aas: nhost
+  - cloud: tau
+- Misc
+  - home assistant

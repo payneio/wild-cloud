@@ -2,7 +2,7 @@
 
 Welcome! So excited you're here!
 
-When I was an 8 year old kid, I had a computer named the Commodore64. One of the coolest things about it was th
+_This project is massively in progress. It's not ready to be used yet (even though I am using it as I develop it). This is published publicly for transparency. If you want to help out, please get in touch._
 
 ## Why Build Your Own Cloud?
 
