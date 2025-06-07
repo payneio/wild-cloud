@@ -1,0 +1,4 @@
+name: example-app
+install: true
+description: An example application that is deployed with public access.
+version: 1.0.0
