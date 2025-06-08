@@ -5,6 +5,7 @@ certmanager
 containo
 coredns
 crds
+dnsmasq
 envsubst
 externaldns
 glddns

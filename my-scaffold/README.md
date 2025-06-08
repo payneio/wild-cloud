@@ -29,9 +29,9 @@ wild cluster apply
 ### Install Wild-Cloud apps
 
 ```bash
-wild apps list
-wild apps get <app>
-wild apps build <app>
-wild apps apply <app>
+wild-apps-list
+wild-app-fetch <app>
+wild-app-config <app>
+wild-app-deploy <app>
 # Optional: Check in app templates.
 ```

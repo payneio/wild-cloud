@@ -33,3 +33,6 @@ cluster:
     cloudflare:
       domain: adam.tld
       ownerId: cloud-adam-cluster
+  nodes:
+    talos:
+      version: v1.10.3

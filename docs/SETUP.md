@@ -1,38 +1,10 @@
-# Setting Up Your Personal Cloud
+# Setting Up Your Wild Cloud
 
-Welcome to your journey toward digital independence! This guide will walk you through setting up your own personal cloud infrastructure using Kubernetes, providing you with privacy, control, and flexibility.
+## Set up your cloud bootstrapper
 
-## Hardware Recommendations
+See [Dnsmasq Setup](./guides/dnsmasq-setup.md).
 
-For a pleasant experience, we recommend:
-
-- A dedicated mini PC, NUC, or old laptop with at least:
-  - 4 CPU cores
-  - 8GB RAM (16GB recommended)
-  - 128GB SSD (256GB or more recommended)
-- A stable internet connection
-- Optional: additional nodes for high availability
-
-## Initial Setup
-
-### 1. Prepare Environment Variables
-
-First, create your environment configuration:
-
-```bash
-# Copy the example file and edit with your details
-cp .env.example .env
-nano .env
-
-# Then load the environment variables
-source load-env.sh
-```
-
-Important variables to set in your `.env` file:
-
-- `DOMAIN`: Your domain name (e.g., `cloud.example.com`)
-- `EMAIL`: Your email for Let's Encrypt certificates
-- `CLOUDFLARE_API_TOKEN`: If using Cloudflare for DNS
+## Set up Control Nodes
 
 ### 2. Install K3s (Lightweight Kubernetes)
 
@@ -48,7 +20,7 @@ sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/config
 chmod 600 ~/.kube/config
 ```
 
-### 3. Install Infrastructure Components
+## Install Infrastructure Components
 
 One command sets up your entire cloud infrastructure:
 
@@ -66,7 +38,7 @@ This installs and configures:
 - **ExternalDNS**: Updates DNS records automatically
 - **Kubernetes Dashboard**: Web UI for managing your cluster
 
-## Adding Additional Nodes (Optional)
+## Set up worker nodes
 
 For larger workloads or high availability, you can add more nodes:
 
