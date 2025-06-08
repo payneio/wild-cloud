@@ -1,0 +1,192 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+VERBOSE=false
+OUTPUT_FORMAT="table"
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --verbose|-v)
+            VERBOSE=true
+            shift
+            ;;
+        --json)
+            OUTPUT_FORMAT="json"
+            shift
+            ;;
+        --yaml)
+            OUTPUT_FORMAT="yaml"
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--verbose] [--json|--yaml]"
+            echo ""
+            echo "List all available Wild-Cloud apps with their metadata."
+            echo ""
+            echo "Options:"
+            echo "  --verbose, -v  Show additional metadata (icon, requires)"
+            echo "  --json         Output in JSON format"
+            echo "  --yaml         Output in YAML format"
+            echo "  -h, --help     Show this help message"
+            echo ""
+            echo "By default, shows a formatted table with name, version, and description."
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            echo "Usage: $0 [--verbose] [--json|--yaml]"
+            exit 1
+            ;;
+        *)
+            echo "Unexpected argument: $1"
+            echo "Usage: $0 [--verbose] [--json|--yaml]"
+            exit 1
+            ;;
+    esac
+done
+
+# Get the path to the Wild-Cloud repository (where this script is located)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WILDCLOUD_REPO="$(dirname "${SCRIPT_DIR}")"
+APPS_DIR="${WILDCLOUD_REPO}/apps"
+
+if [ ! -d "${APPS_DIR}" ]; then
+    echo "Error: Apps directory not found at ${APPS_DIR}"
+    exit 1
+fi
+
+# Function to extract app metadata
+extract_app_metadata() {
+    local app_dir="$1"
+    local app_name="$(basename "${app_dir}")"
+    local manifest_file="${app_dir}/manifest.yaml"
+    
+    if [ ! -f "${manifest_file}" ]; then
+        echo "Warning: No manifest.yaml found for app '${app_name}'" >&2
+        return 1
+    fi
+    
+    local name=$(yq eval '.name // "unknown"' "${manifest_file}")
+    local version=$(yq eval '.version // "unknown"' "${manifest_file}")
+    local description=$(yq eval '.description // ""' "${manifest_file}")
+    local install=$(yq eval '.install // true' "${manifest_file}")
+    local icon=$(yq eval '.icon // ""' "${manifest_file}")
+    local requires=""
+    if yq eval '.requires' "${manifest_file}" | grep -q -v '^null$'; then
+        requires=$(yq eval '.requires[].name' "${manifest_file}" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    fi
+    
+    # Check if app is installed locally
+    local installed_status="NO"
+    local installed_version=""
+    if [ -d "apps/${app_name}" ] && [ -f "apps/${app_name}/manifest.yaml" ]; then
+        installed_version=$(yq eval '.version // "unknown"' "apps/${app_name}/manifest.yaml" 2>/dev/null)
+        installed_status="${installed_version}"
+    fi
+    
+    # Only include apps marked as installable
+    if [ "${install}" != "true" ]; then
+        return 1
+    fi
+    
+    case "${OUTPUT_FORMAT}" in
+        "json")
+            local json_requires=""
+            if [ -n "${requires}" ]; then
+                json_requires="\"$(echo "${requires}" | sed 's/,/","/g')\""
+            fi
+            echo "{"
+            echo "  \"name\": \"${name}\","
+            echo "  \"version\": \"${version}\","
+            echo "  \"description\": \"${description}\","
+            echo "  \"icon\": \"${icon}\","
+            echo "  \"requires\": [${json_requires}],"
+            echo "  \"installed\": \"${installed_status}\","
+            echo "  \"installed_version\": \"${installed_version}\""
+            echo "}"
+            ;;
+        "yaml")
+            echo "- name: ${name}"
+            echo "  version: ${version}"
+            echo "  description: ${description}"
+            echo "  installed: ${installed_status}"
+            if [ -n "${installed_version}" ]; then
+                echo "  installed_version: ${installed_version}"
+            fi
+            if [ -n "${icon}" ]; then
+                echo "  icon: ${icon}"
+            fi
+            if [ -n "${requires}" ]; then
+                echo "  requires:"
+                echo "${requires}" | tr ',' '\n' | sed 's/^/    - /'
+            fi
+            ;;
+        "table")
+            if [ "${VERBOSE}" = true ]; then
+                printf "%-15s %-10s %-12s %-40s %-15s %s\n" "${name}" "${version}" "${installed_status}" "${description:0:40}" "${requires}" "${icon:0:30}"
+            else
+                printf "%-15s %-10s %-12s %s\n" "${name}" "${version}" "${installed_status}" "${description}"
+            fi
+            ;;
+    esac
+}
+
+# Output header for table format
+if [ "${OUTPUT_FORMAT}" = "table" ]; then
+    if [ "${VERBOSE}" = true ]; then
+        echo "Available Wild-Cloud Apps (verbose):"
+        echo "==================================================================================="
+        printf "%-15s %-10s %-12s %-40s %-15s %s\n" "NAME" "VERSION" "INSTALLED" "DESCRIPTION" "REQUIRES" "ICON"
+        printf "%-15s %-10s %-12s %-40s %-15s %s\n" "----" "-------" "---------" "-----------" "--------" "----"
+    else
+        echo "Available Wild-Cloud Apps:"
+        echo "========================================================================================================="
+        printf "%-15s %-10s %-12s %s\n" "NAME" "VERSION" "INSTALLED" "DESCRIPTION"
+        printf "%-15s %-10s %-12s %s\n" "----" "-------" "---------" "-----------"
+    fi
+elif [ "${OUTPUT_FORMAT}" = "json" ]; then
+    echo "{"
+    echo "  \"apps\": ["
+elif [ "${OUTPUT_FORMAT}" = "yaml" ]; then
+    echo "apps:"
+fi
+
+# Process all app directories
+app_count=0
+first_app=true
+
+for app_dir in "${APPS_DIR}"/*/; do
+    if [ -d "${app_dir}" ]; then
+        if extract_app_metadata "${app_dir}" 2>/dev/null; then
+            if [ "${OUTPUT_FORMAT}" = "json" ] && [ "${first_app}" != true ]; then
+                echo ","
+            fi
+            first_app=false
+            app_count=$((app_count + 1))
+        fi
+    fi
+done
+
+# Output footer for JSON format
+if [ "${OUTPUT_FORMAT}" = "json" ]; then
+    echo ""
+    echo "  ],"
+    echo "  \"total\": ${app_count}"
+    echo "}"
+elif [ "${OUTPUT_FORMAT}" = "table" ]; then
+    echo ""
+    echo "Total installable apps: ${app_count}"
+    echo ""
+    echo "Usage:"
+    echo "  wild-app-fetch <app>    # Fetch app template to cache"
+    echo "  wild-app-config <app>   # Configure app with your settings" 
+    echo "  wild-app-deploy <app>   # Deploy app to Kubernetes"
+fi
+
+if [ "${app_count}" -eq 0 ]; then
+    echo "No installable apps found in ${APPS_DIR}"
+    exit 1
+fi
