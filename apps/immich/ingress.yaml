@@ -4,11 +4,11 @@ kind: Ingress
 metadata:
   name: immich-public
   annotations:
-    external-dns.alpha.kubernetes.io/target: your.immich.domain
+    external-dns.alpha.kubernetes.io/target: "{{ .config.apps.immich.domain }}"
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 spec:
   rules:
-    - host: your.immich.domain
+    - host: "{{ .config.apps.immich.domain }}"
       http:
         paths:
           - path: /
@@ -21,4 +21,4 @@ spec:
   tls:
     - secretName: wildcard-internal-wild-cloud-tls
       hosts:
-        - your.immich.domain
+        - "{{ .config.apps.immich.domain }}"

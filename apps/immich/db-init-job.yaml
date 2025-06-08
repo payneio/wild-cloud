@@ -21,12 +21,12 @@ spec:
                 END IF;
               END
               \$\$;
-              
+
               SELECT 'CREATE DATABASE ${DB_DATABASE_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_DATABASE_NAME}')\gexec
               ALTER DATABASE ${DB_DATABASE_NAME} OWNER TO ${DB_USERNAME};
               GRANT ALL PRIVILEGES ON DATABASE ${DB_DATABASE_NAME} TO ${DB_USERNAME};
               EOF
-              
+
               # Connect to the immich database and enable required extensions
               PGPASSWORD=${POSTGRES_ADMIN_PASSWORD} psql -h ${DB_HOSTNAME} -U postgres -d ${DB_DATABASE_NAME} <<EOF
               DO \$\$
@@ -52,26 +52,17 @@ spec:
             - name: POSTGRES_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: secrets
-                  key: POSTGRES_ADMIN_PASSWORD
+                  name: postgres-secrets
+                  key: password
             - name: DB_HOSTNAME
-              valueFrom:
-                configMapKeyRef:
-                  name: config
-                  key: DB_HOSTNAME
+              value: "{{ .config.apps.immich.dbHostname }}"
             - name: DB_DATABASE_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: config
-                  key: DB_DATABASE_NAME
+              value: "{{ .config.apps.immich.dbUsername }}"
             - name: DB_USERNAME
-              valueFrom:
-                configMapKeyRef:
-                  name: config
-                  key: DB_USERNAME
+              value: "{{ .config.apps.immich.dbUsername }}"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: secrets
-                  key: DB_PASSWORD
+                  name: immich-secrets
+                  key: dbPassword
       restartPolicy: OnFailure

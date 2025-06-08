@@ -20,23 +20,22 @@ spec:
         component: microservices
     spec:
       containers:
-        - image: ghcr.io/immich-app/immich-server:release
+        - image: "{{ .config.apps.immich.serverImage }}"
           name: immich-microservices
-          envFrom:
-            - secretRef:
-                name: secrets
-            - configMapRef:
-                name: config
           env:
             - name: REDIS_HOSTNAME
-              value: redis.redis.svc.cluster.local
+              value: "{{ .config.apps.immich.redisHostname }}"
             - name: DB_HOSTNAME
-              value: postgres.postgres.svc.cluster.local
-            - name: TZ
+              value: "{{ .config.apps.immich.dbHostname }}"
+            - name: DB_USERNAME
+              value: "{{ .config.apps.immich.dbUsername }}"
+            - name: DB_PASSWORD
               valueFrom:
-                configMapKeyRef:
-                  key: TZ
-                  name: config
+                secretKeyRef:
+                  name: immich-secrets
+                  key: dbPassword
+            - name: TZ
+              value: "{{ .config.apps.immich.timezone }}"
             - name: IMMICH_WORKERS_EXCLUDE
               value: api
           volumeMounts:

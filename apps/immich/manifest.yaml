@@ -6,3 +6,18 @@ icon: https://immich.app/assets/images/logo.png
 requires:
   - name: redis
   - name: postgres
+defaultConfig:
+  serverImage: ghcr.io/immich-app/immich-server:release
+  mlImage: ghcr.io/immich-app/immich-machine-learning:release
+  timezone: UTC
+  serverPort: 2283
+  mlPort: 3003
+  storage: 250Gi
+  cacheStorage: 10Gi
+  redisHostname: redis.redis.svc.cluster.local
+  dbHostname: postgres.postgres.svc.cluster.local
+  dbUsername: immich
+  domain: immich.example.com
+requiredSecrets:
+  - apps.immich.dbPassword
+  - apps.postgres.password
