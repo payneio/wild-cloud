@@ -43,6 +43,140 @@ if [ ! -d "apps/${APP_NAME}" ]; then
     exit 1
 fi
 
+# Function to deploy secrets for an app
+deploy_secrets() {
+    local app_name="$1"
+    local target_namespace="${2:-${app_name}}"  # Default to app name if not specified
+    
+    # Check if app has a manifest with requiredSecrets
+    local manifest_file="apps/${app_name}/manifest.yaml"
+    if [ ! -f "${manifest_file}" ]; then
+        return 0
+    fi
+    
+    # Check if there are required secrets defined
+    if ! yq eval '.requiredSecrets' "${manifest_file}" | grep -q -v '^null$'; then
+        return 0
+    fi
+    
+    # Check if secrets.yaml exists
+    if [ ! -f ".wildcloud/secrets.yaml" ]; then
+        echo "Warning: .wildcloud/secrets.yaml not found, skipping secret deployment for ${app_name}"
+        return 0
+    fi
+    
+    # Use the target namespace parameter
+    local namespace="${target_namespace}"
+    
+    echo "Deploying secrets for app '${app_name}' in namespace '${namespace}'"
+    
+    # Create secret data
+    local secret_data=""
+    while IFS= read -r secret_path; do
+        # Get the secret value using full path from .wildcloud/secrets.yaml
+        secret_value=$(yq eval ".${secret_path} // \"\"" .wildcloud/secrets.yaml)
+        
+        # Extract just the key name for the Kubernetes secret (handle dotted paths)
+        secret_key="${secret_path##*.}"
+        
+        if [ -n "${secret_value}" ] && [ "${secret_value}" != "null" ]; then
+            if [[ "${secret_value}" == CHANGE_ME_* ]]; then
+                echo "Warning: Secret '${secret_path}' for app '${app_name}' still has dummy value: ${secret_value}"
+            fi
+            secret_data="${secret_data} --from-literal=${secret_key}=${secret_value}"
+        else
+            echo "Error: Required secret '${secret_path}' not found in .wildcloud/secrets.yaml for app '${app_name}'"
+            exit 1
+        fi
+    done < <(yq eval '.requiredSecrets[]' "${manifest_file}")
+    
+    # Create the secret if we have data
+    if [ -n "${secret_data}" ]; then
+        echo "Creating/updating secret '${app_name}-secrets' in namespace '${namespace}'"
+        if [ "${DRY_RUN:-}" = "--dry-run=client" ]; then
+            echo "DRY RUN: kubectl create secret generic ${app_name}-secrets ${secret_data} --namespace=${namespace} --dry-run=client -o yaml"
+        else
+            # Delete existing secret if it exists, then create new one
+            kubectl delete secret "${app_name}-secrets" --namespace="${namespace}" --ignore-not-found=true
+            kubectl create secret generic "${app_name}-secrets" ${secret_data} --namespace="${namespace}"
+        fi
+    fi
+}
+
+# Step 1: Create namespaces first (dependencies and main app)
+echo "Creating namespaces..."
+MANIFEST_FILE="apps/${APP_NAME}/manifest.yaml"
+if [ -f "${MANIFEST_FILE}" ]; then
+    if yq eval '.requires' "${MANIFEST_FILE}" | grep -q -v '^null$'; then
+        yq eval '.requires[].name' "${MANIFEST_FILE}" | while read -r required_app; do
+            if [ -z "${required_app}" ] || [ "${required_app}" = "null" ]; then
+                echo "Warning: Empty or null dependency found, skipping"
+                continue
+            fi
+            
+            if [ ! -d "apps/${required_app}" ]; then
+                echo "Error: Required dependency '${required_app}' not found in apps/ directory"
+                exit 1
+            fi
+            
+            if [ -f "apps/${required_app}/namespace.yaml" ]; then
+                echo "Creating namespace for dependency: ${required_app}"
+                kubectl apply -f "apps/${required_app}/namespace.yaml" ${DRY_RUN:-}
+            else
+                echo "Warning: No namespace.yaml found for dependency: ${required_app}"
+            fi
+        done
+    fi
+fi
+
+# Create namespace for main app
+if [ -f "apps/${APP_NAME}/namespace.yaml" ]; then
+    echo "Creating namespace for app: ${APP_NAME}"
+    kubectl apply -f "apps/${APP_NAME}/namespace.yaml" ${DRY_RUN:-}
+fi
+
+# Step 2: Deploy secrets (dependencies and main app)
+echo "Deploying secrets..."
+if [ -f "${MANIFEST_FILE}" ]; then
+    if yq eval '.requires' "${MANIFEST_FILE}" | grep -q -v '^null$'; then
+        echo "Deploying secrets for required dependencies..."
+        yq eval '.requires[].name' "${MANIFEST_FILE}" | while read -r required_app; do
+            if [ -z "${required_app}" ] || [ "${required_app}" = "null" ]; then
+                echo "Warning: Empty or null dependency found, skipping"
+                continue
+            fi
+            
+            if [ ! -d "apps/${required_app}" ]; then
+                echo "Error: Required dependency '${required_app}' not found in apps/ directory"
+                exit 1
+            fi
+            
+            echo "Deploying secrets for dependency: ${required_app}"
+            # Deploy secrets in dependency's own namespace
+            deploy_secrets "${required_app}"
+            # Also deploy dependency secrets in consuming app's namespace
+            echo "Copying dependency secrets to app namespace: ${APP_NAME}"
+            deploy_secrets "${required_app}" "${APP_NAME}"
+        done
+    fi
+fi
+
+# Deploy secrets for this app
+deploy_secrets "${APP_NAME}"
+
+# Step 2.5: Handle idempotent jobs (delete and recreate)
+echo "Managing idempotent jobs..."
+if [ -f "apps/${APP_NAME}/db-init-job.yaml" ]; then
+    echo "Deleting and recreating db-init job for idempotent execution"
+    kubectl delete job immich-db-init --namespace="${APP_NAME}" --ignore-not-found=true ${DRY_RUN:-}
+    # Wait for job deletion to complete
+    if [ "${DRY_RUN:-}" != "--dry-run=client" ]; then
+        kubectl wait --for=delete job/immich-db-init --namespace="${APP_NAME}" --timeout=30s || true
+    fi
+fi
+
+# Step 3: Deploy the main application
+echo "Deploying application..."
 if [ "${FORCE}" = true ]; then
     echo "Force deploying app '${APP_NAME}'"
     kubectl replace --force -k "apps/${APP_NAME}" ${DRY_RUN:-}

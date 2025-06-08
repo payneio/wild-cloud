@@ -3,12 +3,47 @@
 set -e
 set -o pipefail
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <app_name>"
+UPDATE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --update)
+            UPDATE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 <app_name> [--update]"
+            echo ""
+            echo "Fetch an app template from the Wild-Cloud repository to cache."
+            echo ""
+            echo "Options:"
+            echo "  --update    Overwrite existing cached files without confirmation"
+            echo "  -h, --help  Show this help message"
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            echo "Usage: $0 <app_name> [--update]"
+            exit 1
+            ;;
+        *)
+            if [ -z "${APP_NAME}" ]; then
+                APP_NAME="$1"
+            else
+                echo "Too many arguments"
+                echo "Usage: $0 <app_name> [--update]"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "${APP_NAME}" ]; then
+    echo "Usage: $0 <app_name> [--update]"
     exit 1
 fi
-
-APP_NAME="$1"
 
 if [ ! -d ".wildcloud" ]; then
     echo "Error: .wildcloud directory not found in current directory"
@@ -38,14 +73,19 @@ CACHE_APP_DIR=".wildcloud/cache/apps/${APP_NAME}"
 mkdir -p ".wildcloud/cache/apps"
 
 if [ -d "${CACHE_APP_DIR}" ]; then
-    echo "Warning: Cache directory ${CACHE_APP_DIR} already exists"
-    read -p "Do you want to overwrite it? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Fetch cancelled"
-        exit 1
+    if [ "${UPDATE}" = true ]; then
+        echo "Updating cached app '${APP_NAME}'"
+        rm -rf "${CACHE_APP_DIR}"
+    else
+        echo "Warning: Cache directory ${CACHE_APP_DIR} already exists"
+        read -p "Do you want to overwrite it? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Fetch cancelled"
+            exit 1
+        fi
+        rm -rf "${CACHE_APP_DIR}"
     fi
-    rm -rf "${CACHE_APP_DIR}"
 fi
 
 echo "Fetching app '${APP_NAME}' from ${SOURCE_APP_DIR} to ${CACHE_APP_DIR}"

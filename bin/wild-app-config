@@ -3,12 +3,47 @@
 set -e
 set -o pipefail
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <app_name>"
+UPDATE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --update)
+            UPDATE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 <app_name> [--update]"
+            echo ""
+            echo "Configure an app by applying templates and merging configuration."
+            echo ""
+            echo "Options:"
+            echo "  --update    Overwrite existing app files without confirmation"
+            echo "  -h, --help  Show this help message"
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            echo "Usage: $0 <app_name> [--update]"
+            exit 1
+            ;;
+        *)
+            if [ -z "${APP_NAME}" ]; then
+                APP_NAME="$1"
+            else
+                echo "Too many arguments"
+                echo "Usage: $0 <app_name> [--update]"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "${APP_NAME}" ]; then
+    echo "Usage: $0 <app_name> [--update]"
     exit 1
 fi
-
-APP_NAME="$1"
 
 if [ ! -d ".wildcloud" ]; then
     echo "Error: .wildcloud directory not found in current directory"
@@ -26,24 +61,104 @@ CACHE_APP_DIR=".wildcloud/cache/apps/${APP_NAME}"
 # Check if app is cached, if not fetch it first
 if [ ! -d "${CACHE_APP_DIR}" ]; then
     echo "App '${APP_NAME}' not found in cache, fetching..."
-    ./bin/wild-app-fetch "${APP_NAME}"
+    if [ "${UPDATE}" = true ]; then
+        ./bin/wild-app-fetch "${APP_NAME}" --update
+    else
+        ./bin/wild-app-fetch "${APP_NAME}"
+    fi
 fi
 
 DEST_APP_DIR="apps/${APP_NAME}"
 mkdir -p "apps"
 
 if [ -d "${DEST_APP_DIR}" ]; then
-    echo "Warning: Destination directory ${DEST_APP_DIR} already exists"
-    read -p "Do you want to overwrite it? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Pull cancelled"
-        exit 1
+    if [ "${UPDATE}" = true ]; then
+        echo "Updating app '${APP_NAME}'"
+        rm -rf "${DEST_APP_DIR}"
+    else
+        echo "Warning: Destination directory ${DEST_APP_DIR} already exists"
+        read -p "Do you want to overwrite it? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Configuration cancelled"
+            exit 1
+        fi
+        rm -rf "${DEST_APP_DIR}"
     fi
-    rm -rf "${DEST_APP_DIR}"
 fi
 
 echo "Pulling app '${APP_NAME}' from cache to ${DEST_APP_DIR}"
+
+# Merge defaultConfig from manifest.yaml into .wildcloud/config.yaml
+MANIFEST_FILE="${CACHE_APP_DIR}/manifest.yaml"
+if [ -f "${MANIFEST_FILE}" ]; then
+    echo "Merging defaultConfig from manifest.yaml into .wildcloud/config.yaml"
+    
+    # Check if the app section exists in config.yaml, if not create it
+    if ! yq eval ".apps.${APP_NAME}" .wildcloud/config.yaml >/dev/null 2>&1; then
+        yq eval ".apps.${APP_NAME} = {}" -i .wildcloud/config.yaml
+    fi
+    
+    # Extract defaultConfig from manifest.yaml and merge into config.yaml
+    if yq eval '.defaultConfig' "${MANIFEST_FILE}" | grep -q -v '^null$'; then
+        # Merge each key from defaultConfig into the app's config, only if not already set
+        yq eval '.defaultConfig | keys | .[]' "${MANIFEST_FILE}" | while read -r key; do
+            # Get the value from defaultConfig
+            value=$(yq eval ".defaultConfig.${key}" "${MANIFEST_FILE}")
+            
+            # Check if key exists and is not null in app config
+            current_value=$(yq eval ".apps.${APP_NAME}.${key} // \"null\"" .wildcloud/config.yaml)
+            
+            if [ "${current_value}" = "null" ]; then
+                if [[ "${value}" =~ ^[0-9]+$ ]] || [[ "${value}" =~ ^[0-9]+\.[0-9]+$ ]] || [ "${value}" = "true" ] || [ "${value}" = "false" ]; then
+                    # Numeric, boolean values don't need quotes
+                    yq eval ".apps.${APP_NAME}.${key} = ${value}" -i .wildcloud/config.yaml
+                else
+                    # String values need quotes
+                    yq eval ".apps.${APP_NAME}.${key} = \"${value}\"" -i .wildcloud/config.yaml
+                fi
+            fi
+        done
+        echo "Merged defaultConfig for app '${APP_NAME}'"
+    fi
+    
+    # Scaffold required secrets into .wildcloud/secrets.yaml if they don't exist
+    if yq eval '.requiredSecrets' "${MANIFEST_FILE}" | grep -q -v '^null$'; then
+        echo "Scaffolding required secrets for app '${APP_NAME}'"
+        
+        # Ensure .wildcloud/secrets.yaml exists
+        if [ ! -f ".wildcloud/secrets.yaml" ]; then
+            echo "# Wild-Cloud Secrets Configuration" > .wildcloud/secrets.yaml
+            echo "# This file contains sensitive data and should NOT be committed to git" >> .wildcloud/secrets.yaml
+            echo "# Add this file to your .gitignore" >> .wildcloud/secrets.yaml
+            echo "" >> .wildcloud/secrets.yaml
+        fi
+        
+        # Check if apps section exists, if not create it
+        if ! yq eval ".apps" .wildcloud/secrets.yaml >/dev/null 2>&1; then
+            yq eval ".apps = {}" -i .wildcloud/secrets.yaml
+        fi
+        
+        # Check if app section exists, if not create it
+        if ! yq eval ".apps.${APP_NAME}" .wildcloud/secrets.yaml >/dev/null 2>&1; then
+            yq eval ".apps.${APP_NAME} = {}" -i .wildcloud/secrets.yaml
+        fi
+        
+        # Add dummy values for each required secret if not already present
+        yq eval '.requiredSecrets[]' "${MANIFEST_FILE}" | while read -r secret_path; do
+            current_value=$(yq eval ".${secret_path} // \"null\"" .wildcloud/secrets.yaml)
+            
+            if [ "${current_value}" = "null" ]; then
+                echo "Adding dummy secret: ${secret_path}"
+                # Extract just the key name for the dummy value
+                secret_key=$(basename "${secret_path}")
+                yq eval ".${secret_path} = \"CHANGE_ME_${secret_key^^}\"" -i .wildcloud/secrets.yaml
+            fi
+        done
+        
+        echo "Required secrets scaffolded for app '${APP_NAME}'"
+    fi
+fi
 
 # Function to process a file with gomplate if it's a YAML file
 process_file() {
@@ -52,7 +167,17 @@ process_file() {
     
     if [[ "${src_file}" == *.yaml ]] || [[ "${src_file}" == *.yml ]]; then
         echo "Processing YAML file: ${dest_file}"
-        gomplate -d config=.wildcloud/config.yaml -f "${src_file}" > "${dest_file}"
+        
+        # Build gomplate command with config context (enables .config shorthand)
+        gomplate_cmd="gomplate -c config=.wildcloud/config.yaml"
+        
+        # Add secrets context if secrets.yaml exists (enables .secrets shorthand)
+        if [ -f ".wildcloud/secrets.yaml" ]; then
+            gomplate_cmd="${gomplate_cmd} -c secrets=.wildcloud/secrets.yaml"
+        fi
+        
+        # Execute gomplate with the file
+        ${gomplate_cmd} -f "${src_file}" > "${dest_file}"
     else
         cp "${src_file}" "${dest_file}"
     fi
