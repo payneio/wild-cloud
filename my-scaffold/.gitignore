@@ -1,2 +1,4 @@
-.wildcloud/secrets.yaml
+secrets.yaml
 .wildcloud/cache
+.bots/*/sessions
+backup/
