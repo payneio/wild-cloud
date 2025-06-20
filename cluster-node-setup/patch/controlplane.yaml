@@ -1,0 +1,17 @@
+machine:
+  install:
+    disk: /dev/sdc
+  network:
+    interfaces:
+      - interface: eth0
+        vip:
+          ip: 192.168.8.20
+      - interface: eth1
+        dhcp: true
+cluster:
+  discovery:
+    enabled: true
+    registries:
+      service:
+        disabled: true
+  allowSchedulingOnControlPlanes: true

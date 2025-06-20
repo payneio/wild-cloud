@@ -1,26 +1,24 @@
 # Setting Up Your Wild Cloud
 
-## Set up your cloud bootstrapper
+## Set up your personal cloud operations directory
 
-See [Dnsmasq Setup](./guides/dnsmasq-setup.md).
+- Create a directory somewhere. We recommend you use an Ubuntu machine.
+- Inside it, run `wild-init`. This will scaffold your cloud directory.
+- In your cloud directory, update `.wildcloud/config.yaml`. Use the same values in this dir in a `.env`
+
+## Set up your Cloud Central
+
+See [Central Setup](../central-setup/README.md).
 
 ## Set up Control Nodes
 
 ### 2. Install K3s (Lightweight Kubernetes)
 
-K3s provides a fully-compliant Kubernetes distribution in a small footprint:
-
-```bash
-# Install K3s without the default load balancer (we'll use MetalLB)
-curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode=644 --disable servicelb --disable metallb
-
-# Set up kubectl configuration
-mkdir -p ~/.kube
-sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/config
-chmod 600 ~/.kube/config
-```
+See [Cluster Node Setup](../cluster-node-setup/README.md).
 
 ## Install Infrastructure Components
+
+> Currently, these are set up to run from this directory. This will be moved to (1) a `bin/wild-generate-infrastructure-setup` script to copy them all to your personal cloud dir, (2) `wild-cli` (to do the same), or (3) `wild-central`, once I get my mind made up.
 
 One command sets up your entire cloud infrastructure:
 
@@ -37,19 +35,6 @@ This installs and configures:
 - **CoreDNS**: Provides internal DNS resolution
 - **ExternalDNS**: Updates DNS records automatically
 - **Kubernetes Dashboard**: Web UI for managing your cluster
-
-## Set up worker nodes
-
-For larger workloads or high availability, you can add more nodes:
-
-```bash
-# On your master node, get the node token
-NODE_TOKEN=`sudo cat /var/lib/rancher/k3s/server/node-token`
-MASTER_IP=192.168.8.222
-# On each new node, join the cluster
-
-curl -sfL https://get.k3s.io | K3S_URL=https://$MASTER_IP:6443 K3S_TOKEN=$NODE_TOKEN sh -
-```
 
 ## Next Steps
 
