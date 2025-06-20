@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This file to be run on dnsmasq server
+# This file to be run on dnsmasq server (Central)
 
 echo "Updating APT repositories."
 sudo apt-get update

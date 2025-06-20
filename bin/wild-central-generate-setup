@@ -44,7 +44,7 @@ if [ -z "${WILDCLOUD_REPO}" ] || [ "${WILDCLOUD_REPO}" = "null" ]; then
 fi
 
 # The source templates for asq setup.
-DNSMASQ_TEMPLATE_DIR="${WILDCLOUD_REPO}/infrastructure_setup/dnsmasq"
+DNSMASQ_TEMPLATE_DIR="${WILDCLOUD_REPO}/central-setup/dnsmasq"
 if [ ! -d "${DNSMASQ_TEMPLATE_DIR}" ]; then
     echo "Error: DNSMasq setup directory not found at ${DNSMASQ_TEMPLATE_DIR}"
     exit 1
