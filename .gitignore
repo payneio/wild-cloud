@@ -1,12 +1,9 @@
 .env
 ca
-backups
-backup
-services
-charts
-CLAUDE.md
 .bots/*/sessions
+.working
 
+CLAUDE.md
 **/.claude/settings.local.json
 
 # Wild Cloud
