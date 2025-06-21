@@ -1,0 +1,66 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# Usage function
+usage() {
+    echo "Usage: wild-config <yaml_key_path>"
+    echo ""
+    echo "Read a value from ./config.yaml using a YAML key path."
+    echo ""
+    echo "Examples:"
+    echo "  wild-config 'cluster.name'           # Get cluster name"
+    echo "  wild-config 'apps.myapp.replicas'    # Get app replicas count"
+    echo "  wild-config 'services[0].name'       # Get first service name"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help  Show this help message"
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            if [ -z "${KEY_PATH}" ]; then
+                KEY_PATH="$1"
+            else
+                echo "Too many arguments"
+                usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "${KEY_PATH}" ]; then
+    echo "Error: YAML key path is required"
+    usage
+    exit 1
+fi
+
+if [ ! -f "./config.yaml" ]; then
+    echo "Error: ./config.yaml not found in current directory"
+    exit 1
+fi
+
+# Use yq to extract the value from the YAML file
+result=$(yq eval ".${KEY_PATH}" ./config.yaml)
+
+# Check if result is null (key not found)
+if [ "${result}" = "null" ]; then
+    echo "Error: Key path '${KEY_PATH}' not found in ./config.yaml" >&2
+    exit 1
+fi
+
+echo "${result}"
