@@ -9,7 +9,8 @@ echo "Installing dnsmasq and nginx."
 sudo apt install -y dnsmasq nginx
 
 DNSMASQ_SETUP_DIR="/tmp/dnsmasq-setup"
-NODE_IMAGES_DIR="${DNSMASQ_SETUP_DIR}/pxe-web-root"
+PXE_FTPD_DIR="${DNSMASQ_SETUP_DIR}/pxe-ftpd"
+PXE_WEB_ROOT="${DNSMASQ_SETUP_DIR}/pxe-web"
 
 # Configure nginx.
 echo "Configuring nginx."
@@ -22,7 +23,7 @@ echo "Copying Talos PXE boot assets to nginx web root."
 TALOS_PXE_WEB_ROOT="/var/www/html/talos"
 sudo mkdir -p "${TALOS_PXE_WEB_ROOT}"
 sudo rm -rf ${TALOS_PXE_WEB_ROOT}/* # Clean the web root directory
-sudo cp -r ${NODE_IMAGES_DIR}/* "${TALOS_PXE_WEB_ROOT}"
+sudo cp -r ${PXE_WEB_ROOT}/* "${TALOS_PXE_WEB_ROOT}"
 sudo chown -R www-data:www-data "${TALOS_PXE_WEB_ROOT}"
 sudo chmod -R 755 "${TALOS_PXE_WEB_ROOT}"
 
@@ -42,13 +43,9 @@ if systemctl is-active --quiet systemd-resolved; then
 fi
 
 # Update PXE's iPXE bootloader files.
-# TODO: Put download to cache first.
 echo "Updating iPXE ftpd bootloader files."
 sudo mkdir -p /var/ftpd
-sudo wget http://boot.ipxe.org/ipxe.efi -O /var/ftpd/ipxe.efi
-sudo wget http://boot.ipxe.org/undionly.kpxe -O /var/ftpd/undionly.kpxe
-sudo wget http://boot.ipxe.org/arm64-efi/ipxe.efi -O /var/ftpd/ipxe-arm64.efi
-
+sudo cp ${PXE_FTPD_DIR}/* /var/ftpd/
 
 # Finally, install and configure DNSMasq.
 echo "Configuring and starting DNSMasq."

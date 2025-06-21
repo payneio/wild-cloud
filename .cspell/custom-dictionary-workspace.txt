@@ -1,5 +1,6 @@
 # Custom Dictionary Words
 apiextensions
+Bootloading
 certificaterequests
 certmanager
 containo
@@ -8,9 +9,11 @@ crds
 dnsmasq
 envsubst
 externaldns
+ftpd
 glddns
 gomplate
 IMMICH
+ipxe
 Jellyfin
 keepalives
 KUBECONFIG

@@ -1,23 +1,17 @@
 # Central setup
 
-"Central" is a Wild-cloud concept for a network appliance use for cloud utilities.
+**Central** is a separate machine on your network that provides core wild-cloud services.
 
 Right now, this is entirely `dnsmasq` to provide:
 
 - LAN DNS w/ forwarding of internal and external cloud domains to the cluster.
 - PXE for setting up cluster nodes.
 
-## Setup
+Read the [dnsmasq README.md](./dnsmasq/README.md) for how we set things up right now.
 
-The setup is going through architecture design right now.
+## _Future_ setup
 
-- Initially, the process used to bootstrap a node was:
-  - Run `bin/install-dnsmasq` in your personal wildcloud dir to create a set of install files in `cluster/dnsmasq`.
-  - Copy this dir to a configured debian machine to have the services set up correctly as your Central.
-
-## Future setup
-
-To provide a better user experience, we have been creating a debian apt package that also does this while providing a UI.
+We _may_ follow a Central network appliance in the future, where one could install an apt package and use Central like a LAN router.
 
 Development repo: https://github.com/civil-society-dev/wild-central
 

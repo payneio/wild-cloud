@@ -5,6 +5,27 @@
 set -e
 set -o pipefail
 
+# Initialize wildcloud environment.
+
+if [ ! -d ".wildcloud" ]; then
+    echo "Error: You must run this script from a wild-cloud directory"
+    exit 1
+fi
+
+WILDCLOUD_CONFIG_FILE="./config.yaml"
+if [ ! -f ${WILDCLOUD_CONFIG_FILE} ]; then
+    echo "Error: ${WILDCLOUD_CONFIG_FILE} not found"
+    exit 1
+fi
+
+WILDCLOUD_ROOT=$(yq eval '.wildcloud.root' ${WILDCLOUD_CONFIG_FILE})
+if [ -z "${WILDCLOUD_ROOT}" ] || [ "${WILDCLOUD_ROOT}" = "null" ]; then
+    echo "Error: wildcloud.root not found in ${WILDCLOUD_CONFIG_FILE}"
+    exit 1
+fi
+
+# ---
+
 # Function to process a file with gomplate.
 process_file() {
     local src_file="$1"
@@ -12,39 +33,14 @@ process_file() {
     
     if [[ "${src_file}" == *.yaml ]] || [[ "${src_file}" == *.ipxe ]] || [[ "${src_file}" == *.conf ]]; then
         echo "Processing YAML file: ${dest_file}"
-        gomplate -d config=.wildcloud/config.yaml -f "${src_file}" > "${dest_file}"
+        gomplate -d config=./config.yaml -f "${src_file}" > "${dest_file}"
     else
         cp "${src_file}" "${dest_file}"
     fi
 }
 
-
-# Initialize wildcloud environment.
-
-# Ensure we have a .wildcloud directory.
-if [ ! -d ".wildcloud" ]; then
-    echo "Error: .wildcloud directory not found in current directory"
-    echo "This script must be run from a directory that contains a .wildcloud directory"
-    exit 1
-fi
-
-# Ensure we have a config file.
-if [ ! -f ".wildcloud/config.yaml" ]; then
-    echo "Error: .wildcloud/config.yaml not found"
-    exit 1
-fi
-
-WILDCLOUD_CACHE_DIR=".wildcloud/cache"
-
-# Find the wildcloud repository path from the config file.
-WILDCLOUD_REPO=$(yq eval '.wildcloud.repository' .wildcloud/config.yaml)
-if [ -z "${WILDCLOUD_REPO}" ] || [ "${WILDCLOUD_REPO}" = "null" ]; then
-    echo "Error: wildcloud.repository not found in .wildcloud/config.yaml"
-    exit 1
-fi
-
-# The source templates for asq setup.
-DNSMASQ_TEMPLATE_DIR="${WILDCLOUD_REPO}/central-setup/dnsmasq"
+# The source templates for dnsmasq setup.
+DNSMASQ_TEMPLATE_DIR="${WILDCLOUD_ROOT}/central-setup/dnsmasq"
 if [ ! -d "${DNSMASQ_TEMPLATE_DIR}" ]; then
     echo "Error: DNSMasq setup directory not found at ${DNSMASQ_TEMPLATE_DIR}"
     exit 1
@@ -52,7 +48,6 @@ fi
 
 # Where to put the processed DNSMasq files.
 DNSMASQ_SETUP_DIR="cluster/dnsmasq"
-mkdir -p $DNSMASQ_SETUP_DIR
 
 # Optionally remove the setup directory if it already exists.
 if [ -d "${DNSMASQ_SETUP_DIR}" ]; then
@@ -65,6 +60,8 @@ if [ -d "${DNSMASQ_SETUP_DIR}" ]; then
     fi
     rm -rf "${DNSMASQ_SETUP_DIR}"
 fi
+
+mkdir -p $DNSMASQ_SETUP_DIR
 
 # Compile templates to setup directory.
 find "${DNSMASQ_TEMPLATE_DIR}" -type d | while read -r src_dir; do
@@ -88,47 +85,3 @@ find "${DNSMASQ_TEMPLATE_DIR}" -type f | while read -r src_file; do
 done
 
 echo "Successfully created dnsmasq setup files from templates."
-
-# Create Talos bare metal boot assets. 
-echo "Creating Talos bare metal boot assets..."
-TALOS_ID=$(curl -X POST --data-binary @${DNSMASQ_TEMPLATE_DIR}/bare-metal.yaml https://factory.talos.dev/schematics | jq -r '.id')
-if [ -z "${TALOS_ID}" ] || [ "${TALOS_ID}" = "null" ]; then
-    echo "Error: Failed to create Talos bare metal boot assets"
-    exit 1
-fi
-echo "Successfully created Talos bare metal boot assets with ID: ${TALOS_ID}"
-
-# Download Talos kernel and initramfs.
-echo "Downloading Talos kernel and initramfs for PXE boot..."
-NODE_IMAGES_DIR="${WILDCLOUD_CACHE_DIR}/pxe-web-root"
-mkdir -p "${NODE_IMAGES_DIR}"
-cp "${DNSMASQ_SETUP_DIR}/boot.ipxe" "${NODE_IMAGES_DIR}/boot.ipxe"
-mkdir -p "${NODE_IMAGES_DIR}/amd64"
-
-# Get Talos version from config
-TALOS_VERSION=$(yq eval '.cluster.nodes.talos.version' .wildcloud/config.yaml)
-if [ -z "${TALOS_VERSION}" ] || [ "${TALOS_VERSION}" = "null" ]; then
-    echo "Error: .cluster.nodes.talos.version not found in .wildcloud/config.yaml"
-    exit 1
-fi
-
-# Download kernel if not already exists
-if [ ! -f "${NODE_IMAGES_DIR}/amd64/vmlinuz" ]; then
-    echo "Downloading Talos kernel..."
-    wget -O "${NODE_IMAGES_DIR}/amd64/vmlinuz" "https://pxe.factory.talos.dev/image/${TALOS_ID}/${TALOS_VERSION}/kernel-amd64"
-else
-    echo "Talos kernel already exists, skipping download"
-fi
-
-# Download initramfs if not already exists
-if [ ! -f "${NODE_IMAGES_DIR}/amd64/initramfs.xz" ]; then
-    echo "Downloading Talos initramfs..."
-    wget -O "${NODE_IMAGES_DIR}/amd64/initramfs.xz" "https://pxe.factory.talos.dev/image/${TALOS_ID}/${TALOS_VERSION}/initramfs-amd64.xz"
-else
-    echo "Talos initramfs already exists, skipping download"
-fi
-
-# Copy files to dnsmasq server.
-echo "Copying DNSMasq setup files to dnsmasq server..."
-scp -r "${DNSMASQ_SETUP_DIR}"/* root@192.168.8.50:/tmp/dnsmasq-setup/
-scp -r "${NODE_IMAGES_DIR}"/* root@192.168.8.50:/tmp/dnsmasq-setup/pxe-web-root/

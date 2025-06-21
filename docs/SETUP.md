@@ -1,14 +1,31 @@
-# Setting Up Your Wild Cloud
+# Setting Up Your Wild-cloud
+
+## Initial setup
+
+- Add `bin` directory to your path.
 
 ## Set up your personal cloud operations directory
 
-- Create a directory somewhere. We recommend you use an Ubuntu machine.
-- Inside it, run `wild-init`. This will scaffold your cloud directory.
-- In your cloud directory, update `.wildcloud/config.yaml`. Use the same values in this dir in a `.env`
+```bash
+cd ~
+mkdir ~/my-wild-cloud
+cd my-wild-cloud
+wild-init
+cp config.example.yaml config.yaml
+cp secrets.example.yaml secrets.yaml
+```
+
+## Configuring your wild-cloud
+
+Now, update your config.yaml and secrets.yaml.
+
+Instructions TBD.
 
 ## Set up your Cloud Central
 
-See [Central Setup](../central-setup/README.md).
+```bash
+bin/wild-central-generate-setup
+```
 
 ## Set up Control Nodes
 
