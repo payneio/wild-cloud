@@ -1,0 +1,54 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# Usage function
+usage() {
+    echo "Usage: wild-compile-template [options]"
+    echo ""
+    echo "Compile a gomplate template from stdin using ./config.yaml as context."
+    echo ""
+    echo "Examples:"
+    echo "  echo 'Hello {{.config.cluster.name}}' | wild-compile-template"
+    echo "  cat template.yml | wild-compile-template"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help  Show this help message"
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            echo "Too many arguments"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [ ! -f "./config.yaml" ]; then
+    echo "Error: ./config.yaml not found in current directory" >&2
+    exit 1
+fi
+
+# Build gomplate command with config context (enables .config shorthand)
+gomplate_cmd="gomplate -c config=./config.yaml"
+
+# Add secrets context if secrets.yaml exists (enables .secrets shorthand)
+if [ -f "./secrets.yaml" ]; then
+    gomplate_cmd="${gomplate_cmd} -c secrets=./secrets.yaml"
+fi
+
+# Execute gomplate with stdin
+${gomplate_cmd}

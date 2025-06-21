@@ -1,87 +1,36 @@
 #!/bin/bash
 
-# Setup.
-
 set -e
 set -o pipefail
-
-# Initialize wildcloud environment.
 
 if [ ! -d ".wildcloud" ]; then
     echo "Error: You must run this script from a wild-cloud directory"
     exit 1
 fi
 
-WILDCLOUD_CONFIG_FILE="./config.yaml"
-if [ ! -f ${WILDCLOUD_CONFIG_FILE} ]; then
-    echo "Error: ${WILDCLOUD_CONFIG_FILE} not found"
+WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
+TEMPLATE_DIR="${WILDCLOUD_ROOT}/central-setup/dnsmasq"
+SETUP_DIR="cluster/dnsmasq"
+
+if [ ! -d "${TEMPLATE_DIR}" ]; then
+    echo "Error: Template directory not found at ${TEMPLATE_DIR}"
     exit 1
 fi
 
-WILDCLOUD_ROOT=$(yq eval '.wildcloud.root' ${WILDCLOUD_CONFIG_FILE})
-if [ -z "${WILDCLOUD_ROOT}" ] || [ "${WILDCLOUD_ROOT}" = "null" ]; then
-    echo "Error: wildcloud.root not found in ${WILDCLOUD_CONFIG_FILE}"
-    exit 1
-fi
-
-# ---
-
-# Function to process a file with gomplate.
-process_file() {
-    local src_file="$1"
-    local dest_file="$2"
-    
-    if [[ "${src_file}" == *.yaml ]] || [[ "${src_file}" == *.ipxe ]] || [[ "${src_file}" == *.conf ]]; then
-        echo "Processing YAML file: ${dest_file}"
-        gomplate -d config=./config.yaml -f "${src_file}" > "${dest_file}"
-    else
-        cp "${src_file}" "${dest_file}"
-    fi
-}
-
-# The source templates for dnsmasq setup.
-DNSMASQ_TEMPLATE_DIR="${WILDCLOUD_ROOT}/central-setup/dnsmasq"
-if [ ! -d "${DNSMASQ_TEMPLATE_DIR}" ]; then
-    echo "Error: DNSMasq setup directory not found at ${DNSMASQ_TEMPLATE_DIR}"
-    exit 1
-fi
-
-# Where to put the processed DNSMasq files.
-DNSMASQ_SETUP_DIR="cluster/dnsmasq"
-
-# Optionally remove the setup directory if it already exists.
-if [ -d "${DNSMASQ_SETUP_DIR}" ]; then
-    echo "Warning: Destination directory ${DNSMASQ_SETUP_DIR} already exists"
-    read -p "Do you want to overwrite it? (y/N): " -n 1 -r
+if [ -d "${SETUP_DIR}" ]; then
+    echo "Warning: ${SETUP_DIR} already exists"
+    read -p "Overwrite? (y/N): " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled"
-        exit 1
-    fi
-    rm -rf "${DNSMASQ_SETUP_DIR}"
+    [[ ! $REPLY =~ ^[Yy]$ ]] && exit 1
+    rm -rf "${SETUP_DIR}"
 fi
 
-mkdir -p $DNSMASQ_SETUP_DIR
+# Copy and process templates
+cp -r "${TEMPLATE_DIR}" "${SETUP_DIR}"
 
-# Compile templates to setup directory.
-find "${DNSMASQ_TEMPLATE_DIR}" -type d | while read -r src_dir; do
-    rel_path="${src_dir#${DNSMASQ_TEMPLATE_DIR}}"
-    rel_path="${rel_path#/}"  # Remove leading slash if present
-    if [ -n "${rel_path}" ]; then
-        mkdir -p "${DNSMASQ_SETUP_DIR}/${rel_path}"
-    fi
-done
-
-find "${DNSMASQ_TEMPLATE_DIR}" -type f | while read -r src_file; do
-    rel_path="${src_file#${DNSMASQ_TEMPLATE_DIR}}"
-    rel_path="${rel_path#/}"  # Remove leading slash if present
-    dest_file="${DNSMASQ_SETUP_DIR}/${rel_path}"
-    
-    # Ensure destination directory exists
-    dest_dir=$(dirname "${dest_file}")
-    mkdir -p "${dest_dir}"
-    
-    process_file "${src_file}" "${dest_file}"
+find "${SETUP_DIR}" -type f \( -name "*.yaml" -o -name "*.ipxe" -o -name "*.conf" \) | while read -r file; do
+    echo "Processing: ${file}"
+    wild-compile-template < "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
 done
 
 echo "Successfully created dnsmasq setup files from templates."
