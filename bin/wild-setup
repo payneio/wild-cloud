@@ -1,0 +1,82 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+if [ ! -d ".wildcloud" ]; then
+    echo "Error: You must run this script from a wild-cloud directory"
+    exit 1
+fi
+
+WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
+
+
+# Dnsmasq
+
+SOURCE_DIR="${WILDCLOUD_ROOT}/setup"
+DEST_DIR="setup"
+mkdir -p "${DEST_DIR}"
+
+if [ -d "${DEST_DIR}/dnsmasq" ]; then
+    echo "Warning: ${DEST_DIR}/dnsmasq already exists"
+    read -p "Overwrite? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Skipping dnsmasq setup"
+    else
+        rm -rf "${DEST_DIR}/dnsmasq"
+        cp -r "${SOURCE_DIR}/dnsmasq" "${DEST_DIR}/dnsmasq"
+        find "${DEST_DIR}/dnsmasq" -type f \( -name "*.yaml" -o -name "*.ipxe" -o -name "*.conf" \) | while read -r file; do
+            echo "Processing: ${file}"
+            wild-compile-template < "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
+        done
+        echo "Successfully created dnsmasq setup files from templates."
+    fi
+else
+    cp -r "${SOURCE_DIR}/dnsmasq" "${DEST_DIR}/dnsmasq"
+    find "${DEST_DIR}/dnsmasq" -type f \( -name "*.yaml" -o -name "*.ipxe" -o -name "*.conf" \) | while read -r file; do
+        echo "Processing: ${file}"
+        wild-compile-template < "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
+    done
+    echo "Successfully created dnsmasq setup files from templates."
+fi
+
+
+# Cluster-nodes
+
+if [ -d "${DEST_DIR}/cluster-nodes" ]; then
+    echo "Warning: ${DEST_DIR}/cluster-nodes already exists"
+    read -p "Overwrite? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Skipping cluster-nodes setup"
+    else
+        rm -rf "${DEST_DIR}/cluster-nodes"
+        cp -r "${SOURCE_DIR}/cluster-nodes" "${DEST_DIR}/cluster-nodes"
+        echo "Successfully created cluster-nodes setup files."
+    fi
+else
+    cp -r "${SOURCE_DIR}/cluster-nodes" "${DEST_DIR}/cluster-nodes"
+    echo "Successfully created cluster-nodes setup files."
+fi
+
+
+# Cluster
+if [ -d "${DEST_DIR}/cluster" ]; then
+    echo "Warning: ${DEST_DIR}/cluster already exists"
+    read -p "Overwrite? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Skipping cluster setup"
+    else
+        rm -rf "${DEST_DIR}/cluster"
+        cp -r "${SOURCE_DIR}/cluster" "${DEST_DIR}/cluster"
+        echo "Successfully created cluster setup files."
+    fi
+else
+    cp -r "${SOURCE_DIR}/cluster" "${DEST_DIR}/cluster"
+    echo "Successfully created cluster setup files."
+fi
+
+# Instructions
+cp "${SOURCE_DIR}/README.md" "${DEST_DIR}/README.md"

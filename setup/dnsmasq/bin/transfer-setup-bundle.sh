@@ -6,7 +6,7 @@ if [ ! -d ".wildcloud" ]; then
 fi
 
 SERVER_HOST=$(wild-config cloud.dns.ip2) || exit 1
-SETUP_DIR="./cluster/dnsmasq/setup-bundle"
+SETUP_DIR="./setup/dnsmasq/setup-bundle"
 DESTINATION_DIR="~/dnsmasq-setup"
 
 echo "Copying DNSMasq setup files to ${SERVER_HOST}:${DESTINATION_DIR}..."

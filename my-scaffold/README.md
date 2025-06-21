@@ -1,32 +1,29 @@
 # Your Wild-Cloud
 
-## Getting started
+## One-time Setup
 
-### Install wild-cloud tools
+Congratulations! Everything you need for setting up and managing your wild-cloud is in this directory.
 
-```
-# TBD
-```
-
-### Set up wild-cloud hardware
-
-TBD
-
-### Create your wild-cloud
+The first step is to set up your configuration and secrets.
 
 ```bash
-wild init         # Creates a .wildcloud dir and copies templates.
-wild update       # Updates templates
-wild cluster init # Copies cluster templates
-
-# Make your config and secrets changes.
-
-wild cluster build
-wild cluster apply
-# Optional: Check in cluster files.
+mv config.example.yaml config.yaml
+mv secrets.example.yaml secrets.yaml
 ```
 
-### Install Wild-Cloud apps
+> Configuration instructions TBD.
+
+Generate your custom setup:
+
+```bash
+wild-setup
+```
+
+Now, continue setup with your custom [setup instructions](./setup/README.md).
+
+## Using your wild-cloud
+
+### Installing Wild-Cloud apps
 
 ```bash
 wild-apps-list

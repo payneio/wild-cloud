@@ -1,30 +1,15 @@
 #!/bin/bash
 
-# Set up 
-
-# Initialize wildcloud environment.
-
 if [ ! -d ".wildcloud" ]; then
     echo "Error: You must run this script from a wild-cloud directory"
     exit 1
 fi
 
-WILDCLOUD_CONFIG_FILE="./config.yaml"
-if [ ! -f ${WILDCLOUD_CONFIG_FILE} ]; then
-    echo "Error: ${WILDCLOUD_CONFIG_FILE} not found"
-    exit 1
-fi
-
-
-WILDCLOUD_ROOT=$(yq eval '.wildcloud.root' ${WILDCLOUD_CONFIG_FILE})
-if [ -z "${WILDCLOUD_ROOT}" ] || [ "${WILDCLOUD_ROOT}" = "null" ]; then
-    echo "Error: wildcloud.root not found in ${WILDCLOUD_CONFIG_FILE}"
-    exit 1
-fi
+WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
 
 # ---
 
-DNSMASQ_SETUP_DIR="./cluster/dnsmasq"
+DNSMASQ_SETUP_DIR="./setup/dnsmasq"
 BUNDLE_DIR="${DNSMASQ_SETUP_DIR}/setup-bundle"
 mkdir -p "${BUNDLE_DIR}"
 
@@ -47,7 +32,7 @@ fi
 echo "Successfully created Talos bare metal boot assets with ID: ${TALOS_ID}"
 
 # Download kernel to ipxe-web if it's not already there.
-TALOS_VERSION=$(wild-config .cluster.nodes.talos.version) || exit 1
+TALOS_VERSION=$(wild-config cluster.nodes.talos.version) || exit 1
 if [ ! -f "${PXE_WEB_ROOT}/amd64/vmlinuz" ]; then
     echo "Downloading Talos kernel..."
     wget -O "${PXE_WEB_ROOT}/amd64/vmlinuz" "https://pxe.factory.talos.dev/image/${TALOS_ID}/${TALOS_VERSION}/kernel-amd64"

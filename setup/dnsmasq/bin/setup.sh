@@ -8,7 +8,7 @@ sudo apt-get update
 echo "Installing dnsmasq and nginx."
 sudo apt install -y dnsmasq nginx
 
-DNSMASQ_SETUP_DIR="/tmp/dnsmasq-setup"
+DNSMASQ_SETUP_DIR="."
 PXE_FTPD_DIR="${DNSMASQ_SETUP_DIR}/pxe-ftpd"
 PXE_WEB_ROOT="${DNSMASQ_SETUP_DIR}/pxe-web"
 
