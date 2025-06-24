@@ -1,5 +1,7 @@
 # Setup instructions
 
+Install dependencies:
+
 Follow the instructions to [set up a dnsmasq machine](./dnsmasq/README.md).
 
 Follow the instructions to [set up cluster nodes](./cluster-nodes/README.md).

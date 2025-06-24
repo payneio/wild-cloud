@@ -27,14 +27,15 @@ A "PXE client" is any machine that is booting using PXE. This is a great way to 
 
 - Install a Linux machine on your LAN. Record it's IP address in your `config:cloud.dns.ip`.
 - Ensure it is accessible with ssh.
-- Run `setup/dnsmasq/bin/create-setup-bundle.sh`
-- Run `setup/dnsmasq/bin/transfer-setup-bundle.sh`
+- From your wild-cloud directory, run `wild-central-generate-setup`.
+- Run `cluster/dnsmasq/bin/create-setup-bundle.sh`
+- Run `cluster/dnsmasq/bin/transfer-setup-bundle.sh`
 
 Now ssh into your dnsmasq machine and do the following:
 
 ```bash
 sudo -i
-cd dnsmasq-setup
+cd /root/dnsmasq-setup
 ./setup.sh
 ```
 

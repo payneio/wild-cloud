@@ -1,0 +1,22 @@
+machine:
+  install:
+    disk: /dev/sdc
+  network:
+    interfaces:
+      - interface: enp4s0
+        dhcp: true
+  kubelet:
+    extraMounts:
+      - destination: /var/lib/longhorn
+        type: bind
+        source: /var/lib/longhorn
+        options:
+          - bind
+          - rshared
+          - rw
+# NOTE: System extensions need to be added via Talos Image Factory
+# customization:
+#   systemExtensions:
+#     officialExtensions:
+#       - siderolabs/iscsi-tools
+#       - siderolabs/util-linux-tools

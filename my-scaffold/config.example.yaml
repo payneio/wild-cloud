@@ -1,6 +1,5 @@
 wildcloud:
-  # You can also use a local path for the repository such as /home/adam/repos/wild-cloud
-  repository: https://github.com/payneio/wild-cloud
+  repository: /home/adam/wildcloud
 operator:
   email: adam@adam.tld
 cloud:
@@ -17,15 +16,40 @@ cloud:
     storageCapacity: 250Gi
   dns:
     ip: 192.168.8.218
+    externalResolver: 1.1.1.1
   dhcpRange: 192.168.8.100,192.168.8.239
-  dnsmasqInterface: enp5s0
+  dnsmasq:
+    interface: enp5s0
+    username: adam
 cluster:
-  endpoint: computer-01
-  endpointIp: 192.168.8.241
+  nodes:
+    talos:
+      version: v1.10.3
+    schematic:
+      customization:
+        extraKernelArgs:
+          - -talos.halt_if_installed
+        systemExtensions:
+          officialExtensions:
+            - siderolabs/gvisor
+            - siderolabs/intel-ucode
+            - siderolabs/iscsi-tools
+            - siderolabs/util-linux-tools
+      schematicId: TBD
+    control:
+      vip: 192.168.8.30
+      node1:
+        ip: 192.168.8.31
+      node2:
+        ip: 192.168.8.32
+      node3:
+        ip: 192.168.8.33
+  name: adam-cluster
+  ipaddressPool: 192.168.8.20-192.168.8.29
+  loadBalancerIp: 192.168.8.20
   kubernetes:
     config: /home/adam/.kube/config
     context: default
-  loadBalancerRange: 192.168.8.240-192.168.8.250
   dashboard:
     adminUsername: admin
   certManager:
@@ -33,6 +57,7 @@ cluster:
     cloudflare:
       domain: adam.tld
       ownerId: cloud-adam-cluster
-  nodes:
-    talos:
-      version: v1.10.3
+  externalDns:
+    ownerId: cloud-adam-cluster
+  dockerRegistry:
+    storage: 10Gi

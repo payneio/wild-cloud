@@ -1,7 +1,8 @@
 #!/bin/bash
 
-if [ ! -d ".wildcloud" ]; then
-    echo "Error: You must run this script from a wild-cloud directory"
+# Check if WC_HOME is set
+if [ -z "${WC_HOME:-}" ]; then
+    echo "Error: WC_HOME environment variable not set. Run \`source ./env.sh\`."
     exit 1
 fi
 
@@ -9,7 +10,7 @@ WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
 
 # ---
 
-DNSMASQ_SETUP_DIR="./setup/dnsmasq"
+DNSMASQ_SETUP_DIR="${WC_ROOT}/setup/dnsmasq"
 BUNDLE_DIR="${DNSMASQ_SETUP_DIR}/setup-bundle"
 mkdir -p "${BUNDLE_DIR}"
 
@@ -20,16 +21,20 @@ PXE_WEB_ROOT="${BUNDLE_DIR}/ipxe-web"
 mkdir -p "${PXE_WEB_ROOT}/amd64"
 cp "${DNSMASQ_SETUP_DIR}/boot.ipxe" "${PXE_WEB_ROOT}/boot.ipxe"
 
-# Create Talos bare metal boot assets.
-# This uses the Talos factory API to create boot assets for bare metal nodes.
-# These assets include the kernel and initramfs needed for PXE booting Talos on bare metal.
-echo "Creating Talos bare metal boot assets..."
-TALOS_ID=$(curl -X POST --data-binary @${DNSMASQ_SETUP_DIR}/bare-metal.yaml https://factory.talos.dev/schematics | jq -r '.id')
+# Get Talos schematic ID from centralized config.
+# The schematic should be uploaded via wild-talos-schema first.
+echo "Getting Talos schematic ID from config..."
+TALOS_ID=$(wild-config cluster.nodes.talos.schematicId)
 if [ -z "${TALOS_ID}" ] || [ "${TALOS_ID}" = "null" ]; then
-    echo "Error: Failed to create Talos bare metal boot assets"
+    echo "Error: No schematic ID found in config.yaml"
+    echo "Run 'wild-talos-schema' first to upload schematic and get ID"
     exit 1
 fi
-echo "Successfully created Talos bare metal boot assets with ID: ${TALOS_ID}"
+echo "Using Talos schematic ID: ${TALOS_ID}"
+
+# Verify schematic includes expected extensions
+echo "Schematic includes:"
+yq eval '.cluster.nodes.talos.schematic.customization.systemExtensions.officialExtensions[]' ./config.yaml | sed 's/^/  - /'
 
 # Download kernel to ipxe-web if it's not already there.
 TALOS_VERSION=$(wild-config cluster.nodes.talos.version) || exit 1

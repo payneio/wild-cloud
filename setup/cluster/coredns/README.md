@@ -19,31 +19,27 @@ Any query for a resource in the `internal.$DOMAIN` domain will be given the IP o
 
 ## Default CoreDNS Configuration
 
-Found at: https://github.com/k3s-io/k3s/blob/master/manifests/coredns.yaml
-
-This is k3s default CoreDNS configuration, for reference:
+This is the default CoreDNS configuration, for reference:
 
 ```txt
 .:53 {
     errors
-    health
+    health { lameduck 5s }
     ready
-    kubernetes %{CLUSTER_DOMAIN}% in-addr.arpa ip6.arpa {
-      pods insecure
-      fallthrough in-addr.arpa ip6.arpa
-    }
-    hosts /etc/coredns/NodeHosts {
-      ttl 60
-      reload 15s
-      fallthrough
-    }
+    log . { class error }
     prometheus :9153
-    forward . /etc/resolv.conf
-    cache 30
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+        ttl 30
+    }
+    forward . /etc/resolv.conf { max_concurrent 1000 }
+    cache 30 {
+        disable success cluster.local
+        disable denial cluster.local
+    }
     loop
     reload
     loadbalance
-    import /etc/coredns/custom/*.override
 }
-import /etc/coredns/custom/*.server
 ```

@@ -73,15 +73,15 @@ no-resolv
 # Add local-only domains here, queries in these domains are answered
 # from /etc/hosts or DHCP only.
 #local=/localnet/
-local=/{{ (ds "config").cloud.domain }}/
-local=/{{ (ds "config").cloud.internalDomain }}/
+local=/{{ .cloud.domain }}/
+local=/{{ .cloud.internalDomain }}/
 
 # Add domains which you want to force to an IP address here.
 # The example below send any host in double-click.net to a local
 # web-server.
 #address=/double-click.net/127.0.0.1
-address=/{{ (ds "config").cloud.domain }}/{{ (ds "config").cluster.endpointIp }}
-address=/{{ (ds "config").cloud.internalDomain }}/{{ (ds "config").cluster.endpointIp }}
+address=/{{ .cloud.domain }}/{{ .cluster.loadBalancerIp }}
+address=/{{ .cloud.internalDomain }}/{{ .cluster.loadBalancerIp }}
 
 # --address (and --server) work with IPv6 addresses too.
 #address=/www.thekelleys.org.uk/fe80::20d:60ff:fe36:f83
@@ -170,7 +170,7 @@ interface=eth0
 # a lease time. If you have more than one network, you will need to
 # repeat this for each network on which you want to supply DHCP
 # service.
-dhcp-range={{ (ds "config").cloud.dhcpRange }},12h
+dhcp-range={{ .cloud.dhcpRange }},12h
 
 # This is an example of a DHCP range where the netmask is given. This
 # is needed for networks we reach the dnsmasq DHCP server via a relay
@@ -345,7 +345,7 @@ dhcp-range={{ (ds "config").cloud.dhcpRange }},12h
 # Override the default route supplied by dnsmasq, which assumes the
 # router is the same machine as the one running dnsmasq.
 #dhcp-option=3,1.2.3.4
-dhcp-option=3,{{ (ds "config").cluster.router.ip }}
+dhcp-option=3,{{ .cluster.router.ip }}
 
 # Do the same thing, but using the option name
 #dhcp-option=option:router,1.2.3.4
@@ -361,7 +361,7 @@ dhcp-option=3,{{ (ds "config").cluster.router.ip }}
 
 # Send DHCPv6 option. Note [] around IPv6 addresses.
 #dhcp-option=option6:dns-server,[1234::77],[1234::88]
-# dhcp-option=option6:dns-server,{{ (ds "config").cluster.dns.ip }}
+# dhcp-option=option6:dns-server,{{ .cluster.dns.ip }}
 
 # Send DHCPv6 option for namservers as the machine running 
 # dnsmasq and another.

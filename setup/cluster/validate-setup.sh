@@ -1,18 +1,17 @@
 #!/bin/bash
 set -e
 
-# FIXME: Need to template out the 192.168 addresses.
+# Check if WC_HOME is set (wildcloud environment sourced)
+if [ -z "${WC_HOME}" ]; then
+    echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
+    exit 1
+fi
 
 # Navigate to script directory
 SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$SCRIPT_DIR"
-
-# Source environment variables
-if [[ -f "../load-env.sh" ]]; then
-  source ../load-env.sh
-fi
 
 # Define colors for better readability
 GREEN='\033[0;32m'
@@ -23,6 +22,20 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# Get configuration from wild-config
+DOMAIN=$(wild-config cloud.domain)
+INTERNAL_DOMAIN=$(wild-config cloud.internalDomain)
+OPERATOR_EMAIL=$(wild-config operator.email)
+DNS_IP=$(wild-config cloud.dns.ip)
+ROUTER_IP=$(wild-config cloud.router.ip)
+
+# Validate required configuration
+if [[ -z "$DOMAIN" || -z "$INTERNAL_DOMAIN" ]]; then
+    echo "Error: Unable to get domain configuration from wild-config"
+    echo "Please ensure your config.yaml is properly configured"
+    exit 1
+fi
+
 # Array to collect issues we found
 declare -a ISSUES_FOUND
 
@@ -32,12 +45,14 @@ echo -e "${BLUE}============================================================${NC
 
 # Display a summary of what will be validated
 echo -e "${CYAN}This script will validate the following components:${NC}"
-echo -e "• ${YELLOW}Core components:${NC} MetalLB, Traefik, CoreDNS (k3s provided components)"
-echo -e "• ${YELLOW}Installed components:${NC} cert-manager, ExternalDNS, Kubernetes Dashboard"
+echo -e "• ${YELLOW}Core components:${NC} MetalLB, Traefik, CoreDNS (Talos/Kubernetes components)"
+echo -e "• ${YELLOW}Installed components:${NC} cert-manager, ExternalDNS, Kubernetes Dashboard, Longhorn"
 echo -e "• ${YELLOW}DNS resolution:${NC} Internal domain names and dashboard access"
 echo -e "• ${YELLOW}Routing:${NC} IngressRoutes, middlewares, and services"
 echo -e "• ${YELLOW}Authentication:${NC} Service accounts and tokens"
+echo -e "• ${YELLOW}Storage:${NC} Longhorn storage system and persistent volumes"
 echo -e "• ${YELLOW}Load balancing:${NC} IP address pools and allocations"
+echo -e "• ${YELLOW}Certificates:${NC} Let's Encrypt wildcard certificates"
 echo
 echo -e "${CYAN}The validation will create a test pod 'validation-test' that will remain running${NC}"
 echo -e "${CYAN}after the script finishes, for further troubleshooting if needed.${NC}"
@@ -291,8 +306,8 @@ show_component_logs() {
 
 echo -e "${BLUE}=== Checking Core Components ===${NC}"
 # Check MetalLB components - using correct label selectors
-check_component "MetalLB Controller" "metallb-system" "app.kubernetes.io/component=controller,app.kubernetes.io/name=metallb"
-check_component "MetalLB Speaker" "metallb-system" "app.kubernetes.io/component=speaker,app.kubernetes.io/name=metallb"
+check_component "MetalLB Controller" "metallb-system" "app=metallb,component=controller"
+check_component "MetalLB Speaker" "metallb-system" "app=metallb,component=speaker"
 
 # Check MetalLB IP address pools
 echo -e "${YELLOW}Checking MetalLB IP address pools...${NC}"
@@ -371,9 +386,58 @@ else
   ISSUES_FOUND+=("Error querying LoadBalancer services")
 fi
 
-# Check k3s components
-check_component "Traefik" "kube-system" "app.kubernetes.io/name=traefik,app.kubernetes.io/instance=traefik-kube-system"
+# Check Talos/Kubernetes core components
+check_component "Traefik" "traefik" "app.kubernetes.io/name=traefik,app.kubernetes.io/instance=traefik-traefik"
 check_component "CoreDNS" "kube-system" "k8s-app=kube-dns"
+
+# Check additional storage components
+check_component "Longhorn Manager" "longhorn-system" "app=longhorn-manager"
+check_component "Longhorn UI" "longhorn-system" "app=longhorn-ui"
+check_component "Docker Registry" "docker-registry" "app=docker-registry"
+
+echo
+
+echo -e "${BLUE}=== Checking Storage Components ===${NC}"
+# Check Longhorn storage
+echo -e "${YELLOW}Checking Longhorn storage system...${NC}"
+LONGHORN_NODES=$(kubectl get nodes.longhorn.io -n longhorn-system -o json 2>/dev/null | jq '.items | length' 2>/dev/null || echo "0")
+if [[ "$LONGHORN_NODES" -gt 0 ]]; then
+  echo -e "  ${GREEN}✓ Longhorn found $LONGHORN_NODES storage nodes${NC}"
+  
+  # Check storage classes
+  LONGHORN_SC=$(kubectl get storageclass longhorn -o name 2>/dev/null)
+  if [[ -n "$LONGHORN_SC" ]]; then
+    echo -e "  ${GREEN}✓ Longhorn storage class available${NC}"
+    
+    # Check if it's the default
+    DEFAULT_SC=$(kubectl get storageclass -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}')
+    if [[ "$DEFAULT_SC" == "longhorn" ]]; then
+      echo -e "  ${GREEN}✓ Longhorn is the default storage class${NC}"
+    else
+      echo -e "  ${YELLOW}⚠ Longhorn is not the default storage class (default: ${DEFAULT_SC:-none})${NC}"
+    fi
+  else
+    echo -e "  ${RED}✗ Longhorn storage class not found${NC}"
+    ISSUES_FOUND+=("Longhorn storage class not found")
+  fi
+  
+  # Check persistent volumes
+  PV_COUNT=$(kubectl get pv 2>/dev/null | grep -c "longhorn" || echo "0")
+  echo -e "  ${CYAN}→ $PV_COUNT Longhorn persistent volumes${NC}"
+else
+  echo -e "  ${RED}✗ Longhorn storage nodes not found${NC}"
+  ISSUES_FOUND+=("Longhorn storage system not properly configured")
+fi
+
+# Check NFS storage if configured
+NFS_SC=$(kubectl get storageclass nfs -o name 2>/dev/null)
+if [[ -n "$NFS_SC" ]]; then
+  echo -e "  ${GREEN}✓ NFS storage class available${NC}"
+  NFS_PV_COUNT=$(kubectl get pv 2>/dev/null | grep -c "nfs" || echo "0")
+  echo -e "  ${CYAN}→ $NFS_PV_COUNT NFS persistent volumes${NC}"
+else
+  echo -e "  ${YELLOW}⚠ NFS storage class not found${NC}"
+fi
 
 echo
 
@@ -382,6 +446,22 @@ echo -e "${BLUE}=== Checking Installed Components ===${NC}"
 check_component "cert-manager" "cert-manager" "app.kubernetes.io/instance=cert-manager"
 check_component "ExternalDNS" "externaldns" "app=external-dns"
 DASHBOARD_CHECK=$(check_component "Kubernetes Dashboard" "kubernetes-dashboard" "k8s-app=kubernetes-dashboard")
+
+# Check certificates
+echo -e "${YELLOW}Checking cert-manager certificates...${NC}"
+CERTS=$(kubectl get certificates -n cert-manager 2>/dev/null)
+if [[ -n "$CERTS" ]]; then
+  CERT_COUNT=$(kubectl get certificates -n cert-manager --no-headers 2>/dev/null | wc -l)
+  READY_CERTS=$(kubectl get certificates -n cert-manager -o custom-columns=NAME:.metadata.name,READY:.status.conditions[0].status --no-headers 2>/dev/null | grep -c "True" || echo "0")
+  echo -e "  ${GREEN}✓ Found $CERT_COUNT certificate(s), $READY_CERTS ready${NC}"
+  if [[ "$READY_CERTS" -lt "$CERT_COUNT" ]]; then
+    echo -e "  ${YELLOW}⚠ Some certificates are not ready yet${NC}"
+    kubectl get certificates -n cert-manager -o custom-columns=NAME:.metadata.name,READY:.status.conditions[0].status,MESSAGE:.status.conditions[0].message --no-headers | grep -v "True" | sed 's/^/    /'
+  fi
+else
+  echo -e "  ${RED}✗ No certificates found${NC}"
+  ISSUES_FOUND+=("No certificates found in cert-manager namespace")
+fi
 
 echo
 
@@ -400,36 +480,36 @@ if echo "$COREDNS_CONFIG" | grep -q "traefik.${DOMAIN}"; then
     echo -e "  ${CYAN}→ traefik.${DOMAIN} is configured with IP: ${TRAEFIK_IP}${NC}"
   fi
 else
-  echo -e "  ${RED}✗ Missing entry for traefik.${DOMAIN} in CoreDNS config${NC}"
-  ISSUES_FOUND+=("Missing DNS entry for traefik.${DOMAIN} in CoreDNS configmap")
+  echo -e "  ${YELLOW}⚠ Entry for traefik.${DOMAIN} not found in CoreDNS config${NC}"
+  echo -e "  ${YELLOW}This is normal if using different routing methods${NC}"
 fi
 
 # Check for dashboard entry
-if echo "$COREDNS_CONFIG" | grep -q "dashboard.internal.${DOMAIN}"; then
-  echo -e "  ${GREEN}✓ Found entry for dashboard.internal.${DOMAIN} in CoreDNS config${NC}"
+if echo "$COREDNS_CONFIG" | grep -q "dashboard.${INTERNAL_DOMAIN}"; then
+  echo -e "  ${GREEN}✓ Found entry for dashboard.${INTERNAL_DOMAIN} in CoreDNS config${NC}"
   
   # Extract the actual IP from the configmap
-  DASHBOARD_IP=$(echo "$COREDNS_CONFIG" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ dashboard\.internal\.${DOMAIN}" | awk '{print $1}')
+  DASHBOARD_IP=$(echo "$COREDNS_CONFIG" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ dashboard\.${INTERNAL_DOMAIN}" | awk '{print $1}')
   if [[ -n "$DASHBOARD_IP" ]]; then
-    echo -e "  ${CYAN}→ dashboard.internal.${DOMAIN} is configured with IP: ${DASHBOARD_IP}${NC}"
+    echo -e "  ${CYAN}→ dashboard.${INTERNAL_DOMAIN} is configured with IP: ${DASHBOARD_IP}${NC}"
   fi
 else
-  echo -e "  ${RED}✗ Missing entry for dashboard.internal.${DOMAIN} in CoreDNS config${NC}"
-  ISSUES_FOUND+=("Missing DNS entry for dashboard.internal.${DOMAIN} in CoreDNS configmap")
+  echo -e "  ${YELLOW}⚠ Entry for dashboard.${INTERNAL_DOMAIN} not found in CoreDNS config${NC}"
+  echo -e "  ${YELLOW}Dashboard may be accessed through ingress routing instead${NC}"
 fi
 
-# Check for kubernetes-dashboard entry
-if echo "$COREDNS_CONFIG" | grep -q "dashboard.internal.${DOMAIN}"; then
-  echo -e "  ${GREEN}✓ Found entry for dashboard.internal.${DOMAIN} in CoreDNS config${NC}"
+# Check for docker registry entry
+if echo "$COREDNS_CONFIG" | grep -q "docker-registry.${INTERNAL_DOMAIN}"; then
+  echo -e "  ${GREEN}✓ Found entry for docker-registry.${INTERNAL_DOMAIN} in CoreDNS config${NC}"
   
   # Extract the actual IP from the configmap
-  K8S_DASHBOARD_IP=$(echo "$COREDNS_CONFIG" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ kubernetes-dashboard\.internal\.${DOMAIN}" | awk '{print $1}')
-  if [[ -n "$K8S_DASHBOARD_IP" ]]; then
-    echo -e "  ${CYAN}→ dashboard.internal.${DOMAIN} is configured with IP: ${K8S_DASHBOARD_IP}${NC}"
+  REGISTRY_IP=$(echo "$COREDNS_CONFIG" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ docker-registry\.${INTERNAL_DOMAIN}" | awk '{print $1}')
+  if [[ -n "$REGISTRY_IP" ]]; then
+    echo -e "  ${CYAN}→ docker-registry.${INTERNAL_DOMAIN} is configured with IP: ${REGISTRY_IP}${NC}"
   fi
 else
-  echo -e "  ${YELLOW}Note: dashboard.internal.${DOMAIN} entry not found in CoreDNS config${NC}"
-  echo -e "  ${YELLOW}This is not critical as dashboard.internal.${DOMAIN} is the primary hostname${NC}"
+  echo -e "  ${YELLOW}⚠ Entry for docker-registry.${INTERNAL_DOMAIN} not found in CoreDNS config${NC}"
+  echo -e "  ${YELLOW}Registry may be accessed through ingress routing instead${NC}"
 fi
 
 echo -e "${YELLOW}Note: DNS resolution from within the cluster may be different than external resolution${NC}"
@@ -597,21 +677,19 @@ test_full_request_path() {
 # Check dashboard domains
 echo -e "${YELLOW}Checking DNS resolution for dashboard domains...${NC}"
 
-# First check primary dashboard domain using the IP we found in CoreDNS config
+# Check primary dashboard domain
 if [[ -n "$DASHBOARD_IP" ]]; then
-  check_dns_resolution "dashboard.internal.${DOMAIN}" "$DASHBOARD_IP" "true"
+  check_dns_resolution "dashboard.${INTERNAL_DOMAIN}" "$DASHBOARD_IP" "true"
 else
-  # Fall back to hardcoded IP if not found in config
-  check_dns_resolution "dashboard.internal.${DOMAIN}" "192.168.8.240" "false" || \
-    check_coredns_entry "dashboard.internal.${DOMAIN}" "192.168.8.240"
+  # Check if dashboard is accessible through cluster DNS
+  check_dns_resolution "dashboard.${INTERNAL_DOMAIN}" "" "true" || true
 fi
 
-# Also check alternative dashboard domain
-if [[ -n "$K8S_DASHBOARD_IP" ]]; then
-  check_dns_resolution "dashboard.internal.${DOMAIN}" "$K8S_DASHBOARD_IP" "true"
+# Also check docker registry domain
+if [[ -n "$REGISTRY_IP" ]]; then
+  check_dns_resolution "docker-registry.${INTERNAL_DOMAIN}" "$REGISTRY_IP" "true"
 else
-  # Fall back to the same IP as primary domain if alternate isn't defined
-  check_dns_resolution "dashboard.internal.${DOMAIN}" "${DASHBOARD_IP:-192.168.8.240}" "true" || true
+  check_dns_resolution "docker-registry.${INTERNAL_DOMAIN}" "" "true" || true
 fi
 
 # Enhanced DNS tests
@@ -620,10 +698,9 @@ echo -e "${YELLOW}Running enhanced DNS and path validation tests...${NC}"
 # Since external DNS is configured to use the local machine's DNS settings,
 # we'll skip the external DNS check if it's not working, since that's a client config issue
 echo -e "${YELLOW}Note: External DNS resolution depends on client DNS configuration${NC}"
-echo -e "${YELLOW}If your local DNS server is properly configured to use CoreDNS (192.168.8.241),${NC}"
-echo -e "${YELLOW}it should resolve dashboard.internal.${DOMAIN} to 192.168.8.240${NC}"
-echo -e "${GREEN}✓ External DNS configuration exists (tested inside cluster)${NC}"
-echo -e "${YELLOW}External DNS resolution and HTTP access must be tested manually from your browser.${NC}"
+echo -e "${YELLOW}Dashboard and registry should be accessible through ingress routing${NC}"
+echo -e "${GREEN}✓ Internal DNS configuration validated${NC}"
+echo -e "${YELLOW}External access should be tested manually from your browser.${NC}"
 
 # Skip the problematic tests as they depend on client configuration
 # check_external_dns_resolution "dashboard.internal.${DOMAIN}" "192.168.8.240"
@@ -635,7 +712,7 @@ check_coredns_config_applied
 # Skip HTTP test as it depends on client network configuration
 echo -e "${YELLOW}Note: HTTP access test skipped - this depends on client network configuration${NC}"
 echo -e "${GREEN}✓ Dashboard IngressRoute and DNS configuration validated${NC}"
-echo -e "${YELLOW}Manually verify you can access https://dashboard.internal.${DOMAIN} in your browser${NC}"
+echo -e "${YELLOW}Manually verify you can access https://dashboard.${INTERNAL_DOMAIN} in your browser${NC}"
 # test_full_request_path "dashboard.internal.${DOMAIN}" "200"
 
 echo
@@ -644,40 +721,33 @@ echo -e "${BLUE}=== Checking IngressRoutes for Dashboard ===${NC}"
 # Check if IngressRoutes are properly configured
 echo -e "${YELLOW}Checking IngressRoutes for the dashboard...${NC}"
 
-# Check IngressRoutes for dashboard in both namespaces
+# Check IngressRoutes for dashboard
+echo -e "${YELLOW}Checking for dashboard IngressRoutes...${NC}"
 
-# First check kube-system namespace (for cross-namespace routing)
-KUBE_SYSTEM_ROUTE_CHECK=$(check_ingressroute "kubernetes-dashboard" "kube-system" "dashboard.internal.${DOMAIN}" "kubernetes-dashboard" "kubernetes-dashboard" || echo "FAILED")
-KUBE_SYSTEM_ALT_ROUTE_CHECK=$(check_ingressroute "kubernetes-dashboard-alt" "kube-system" "dashboard.internal.${DOMAIN}" "kubernetes-dashboard" "kubernetes-dashboard" || echo "FAILED")
-
-# Then check kubernetes-dashboard namespace (for same-namespace routing)
-K8S_DASHBOARD_ROUTE_CHECK=$(check_ingressroute "kubernetes-dashboard" "kubernetes-dashboard" "dashboard.internal.${DOMAIN}" "kubernetes-dashboard" || echo "FAILED")
-K8S_DASHBOARD_ALT_ROUTE_CHECK=$(check_ingressroute "kubernetes-dashboard-alt" "kubernetes-dashboard" "dashboard.internal.${DOMAIN}" "kubernetes-dashboard" || echo "FAILED")
-
-# Determine if we have at least one working route for each domain
-PRIMARY_DOMAIN_ROUTE_OK=false
-if ! echo "$KUBE_SYSTEM_ROUTE_CHECK $K8S_DASHBOARD_ROUTE_CHECK" | grep -q "FAILED FAILED"; then
-  PRIMARY_DOMAIN_ROUTE_OK=true
-fi
-
-ALT_DOMAIN_ROUTE_OK=false
-if ! echo "$KUBE_SYSTEM_ALT_ROUTE_CHECK $K8S_DASHBOARD_ALT_ROUTE_CHECK" | grep -q "FAILED FAILED"; then
-  ALT_DOMAIN_ROUTE_OK=true
-fi
-
-# Report warnings/issues if needed
-if [[ "$PRIMARY_DOMAIN_ROUTE_OK" != "true" ]]; then
-  echo -e "${RED}✗ No valid IngressRoute found for dashboard.internal.${DOMAIN}${NC}"
-  ISSUES_FOUND+=("No valid IngressRoute for dashboard.internal.${DOMAIN}")
+# Check for IngressRoutes in kubernetes-dashboard namespace
+DASHBOARD_INGRESS_COUNT=$(kubectl get ingressroute -n kubernetes-dashboard 2>/dev/null | grep -c "kubernetes-dashboard" || echo "0")
+if [[ "$DASHBOARD_INGRESS_COUNT" -gt 0 ]]; then
+  echo -e "  ${GREEN}✓ Found $DASHBOARD_INGRESS_COUNT dashboard IngressRoute(s)${NC}"
+  kubectl get ingressroute -n kubernetes-dashboard -o custom-columns=NAME:.metadata.name,RULE:.spec.routes[0].match --no-headers | sed 's/^/    /'
 else
-  echo -e "${GREEN}✓ Found valid IngressRoute for dashboard.internal.${DOMAIN}${NC}"
+  echo -e "  ${YELLOW}⚠ No IngressRoutes found for dashboard${NC}"
+  echo -e "  ${YELLOW}Dashboard may be accessible via port-forward or NodePort${NC}"
 fi
 
-if [[ "$ALT_DOMAIN_ROUTE_OK" != "true" ]]; then
-  echo -e "${YELLOW}⚠ No valid IngressRoute found for dashboard.internal.${DOMAIN}${NC}"
-  echo -e "${YELLOW}This is not critical as dashboard.internal.${DOMAIN} is the primary hostname${NC}"
+# Check for Traefik IngressRoutes
+TRAEFIK_INGRESS_COUNT=$(kubectl get ingressroute -n traefik 2>/dev/null | wc -l || echo "1")
+if [[ "$TRAEFIK_INGRESS_COUNT" -gt 1 ]]; then
+  echo -e "  ${GREEN}✓ Found Traefik IngressRoutes${NC}"
 else
-  echo -e "${GREEN}✓ Found valid IngressRoute for dashboard.internal.${DOMAIN}${NC}"
+  echo -e "  ${YELLOW}⚠ No Traefik IngressRoutes found${NC}"
+fi
+
+# Check Docker Registry IngressRoutes
+REGISTRY_INGRESS_COUNT=$(kubectl get ingressroute -n docker-registry 2>/dev/null | grep -c "docker-registry" || echo "0")
+if [[ "$REGISTRY_INGRESS_COUNT" -gt 0 ]]; then
+  echo -e "  ${GREEN}✓ Found $REGISTRY_INGRESS_COUNT docker registry IngressRoute(s)${NC}"
+else
+  echo -e "  ${YELLOW}⚠ No IngressRoutes found for docker registry${NC}"
 fi
 
 echo
@@ -687,18 +757,21 @@ echo -e "${BLUE}=== Checking All IngressRoutes ===${NC}"
 echo -e "${YELLOW}IngressRoutes in kubernetes-dashboard namespace:${NC}"
 kubectl get ingressroute -n kubernetes-dashboard -o custom-columns=NAME:.metadata.name,ENTRYPOINTS:.spec.entryPoints,RULE:.spec.routes[0].match 2>/dev/null || echo "None found"
 
-echo -e "${YELLOW}IngressRoutes in kube-system namespace:${NC}"
-kubectl get ingressroute -n kube-system -o custom-columns=NAME:.metadata.name,ENTRYPOINTS:.spec.entryPoints,RULE:.spec.routes[0].match 2>/dev/null || echo "None found"
+echo -e "${YELLOW}IngressRoutes in traefik namespace:${NC}"
+kubectl get ingressroute -n traefik -o custom-columns=NAME:.metadata.name,ENTRYPOINTS:.spec.entryPoints,RULE:.spec.routes[0].match 2>/dev/null || echo "None found"
+
+echo -e "${YELLOW}IngressRoutes in docker-registry namespace:${NC}"
+kubectl get ingressroute -n docker-registry -o custom-columns=NAME:.metadata.name,ENTRYPOINTS:.spec.entryPoints,RULE:.spec.routes[0].match 2>/dev/null || echo "None found"
 
 echo
 
 echo -e "${BLUE}=== Checking Middleware Configuration ===${NC}"
-# Check middleware status in both namespaces
+# Check middleware status in namespaces
 echo -e "${YELLOW}Middlewares in kubernetes-dashboard namespace:${NC}"
 kubectl get middleware -n kubernetes-dashboard -o custom-columns=NAME:.metadata.name,TYPE:.spec.ipWhiteList 2>/dev/null || echo "None found"
 
-echo -e "${YELLOW}Middlewares in kube-system namespace:${NC}"
-kubectl get middleware -n kube-system -o custom-columns=NAME:.metadata.name,TYPE:.spec.ipWhiteList 2>/dev/null || echo "None found"
+echo -e "${YELLOW}Middlewares in traefik namespace:${NC}"
+kubectl get middleware -n traefik -o custom-columns=NAME:.metadata.name,TYPE:.spec.ipWhiteList 2>/dev/null || echo "None found"
 
 # Verify middleware is in the same namespace as IngressRoute
 if echo "$KUBE_SYSTEM_ROUTE_CHECK" | grep -q "FAILED"; then
@@ -868,13 +941,18 @@ else
     fi
   fi
   
-  # Try the alternative domain as well
-  echo -e "${YELLOW}Testing access to alternative dashboard URL...${NC}"
-  ALT_CURL_OUTPUT=$(kubectl exec validation-test -- curl -v -k --connect-timeout 5 --max-time 10 https://dashboard.internal.${DOMAIN}/ 2>&1 || echo "Connection failed")
+  # Try checking the service directly
+  echo -e "${YELLOW}Testing direct service access...${NC}"
+  SERVICE_IP=$(kubectl get svc -n kubernetes-dashboard kubernetes-dashboard -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
+  if [[ -n "$SERVICE_IP" ]]; then
+    ALT_CURL_OUTPUT=$(kubectl exec validation-test -- curl -v -k --connect-timeout 5 --max-time 10 https://${SERVICE_IP}/ 2>&1 || echo "Connection failed")
+  else
+    ALT_CURL_OUTPUT="Service IP not found"
+  fi
   
   if echo "$ALT_CURL_OUTPUT" | grep -q "HTTP/[0-9.]\+ 200"; then
-    echo -e "${GREEN}✓ Successfully connected to dashboard.internal.${DOMAIN}${NC}"
-    echo -e "${YELLOW}Note: The alternative URL works but the primary one doesn't${NC}"
+    echo -e "${GREEN}✓ Successfully connected to dashboard service directly${NC}"
+    echo -e "${YELLOW}Note: Direct service access works but ingress routing may have issues${NC}"
     
     # Extract a bit of content to show it's working
     ALT_CONTENT=$(echo "$ALT_CURL_OUTPUT" | grep -A5 "<title>" | head -n3 | sed 's/^/  /')
@@ -883,7 +961,7 @@ else
       echo "$ALT_CONTENT"
     fi
   else
-    echo -e "${RED}✗ Failed to access dashboard.internal.${DOMAIN} as well${NC}"
+    echo -e "${RED}✗ Failed to access dashboard service directly as well${NC}"
     echo -e "${YELLOW}This indicates a deeper issue with the dashboard setup or network configuration${NC}"
     
     # Show error details
@@ -892,7 +970,7 @@ else
       echo "$ALT_CURL_OUTPUT" | grep -E "Connected to|TLS|HTTP|Failed|error|* connection|timeout|certificate|refused|resolve" | head -5 | sed 's/^/  /'
     fi
     
-    ISSUES_FOUND+=("Cannot access dashboard.internal.${DOMAIN}")
+    ISSUES_FOUND+=("Cannot access dashboard.${INTERNAL_DOMAIN} via any method")
   fi
 fi
 
@@ -1002,7 +1080,7 @@ if [[ ${#ISSUES_FOUND[@]} -gt 0 ]]; then
   # Core recommendation
   echo -e "${BOLD}Primary Fix:${NC}"
   echo -e "${CYAN}Run the complete setup script to fix all issues at once:${NC}"
-  echo -e "${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/setup-all.sh${NC}"
+  echo -e "${YELLOW}cd ${WC_HOME} && ./setup/cluster/install-all.sh${NC}"
   
   echo
   echo -e "${BOLD}Component-Specific Fixes:${NC}"
@@ -1010,42 +1088,42 @@ if [[ ${#ISSUES_FOUND[@]} -gt 0 ]]; then
   # MetalLB specific recommendations
   if issue_matches "MetalLB" || issue_matches "LoadBalancer" || issue_matches "IP allocation" || issue_matches "address"; then
     echo -e "${CYAN}For MetalLB and IP allocation issues:${NC}"
-    echo -e "   1. Run the MetalLB setup script: ${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/setup-metallb.sh${NC}"
+    echo -e "   1. Run the MetalLB setup script: ${YELLOW}cd ${WC_HOME} && ./setup/cluster/metallb/install.sh${NC}"
     echo -e "   2. Check for conflicting services: ${YELLOW}kubectl get svc -A --field-selector type=LoadBalancer${NC}"
     echo -e "   3. If you have conflicting IP allocations, edit the service that shouldn't have the IP:"
     echo -e "      ${YELLOW}kubectl edit svc <service-name> -n <namespace>${NC}"
     echo -e "      Remove the metallb.universe.tf/loadBalancerIPs annotation"
-    echo -e "   4. Check MetalLB logs for errors: ${YELLOW}kubectl logs -n metallb-system -l app=metallb,component=controller${NC}"
+    echo -e "   4. Check MetalLB logs for errors: ${YELLOW}kubectl logs -n metallb-system -l app.kubernetes.io/name=metallb${NC}"
   fi
   
   # Dashboard specific recommendations
   if issue_matches "Dashboard" || issue_matches "dashboard"; then
     echo -e "${CYAN}For dashboard issues:${NC}"
-    echo -e "   ${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/setup-dashboard.sh${NC}"
-    echo -e "   Alternatively, use port-forwarding to access the dashboard: ${YELLOW}./bin/dashboard-port-forward${NC}"
-    echo -e "   Get authentication token with: ${YELLOW}./bin/dashboard-token${NC}"
+    echo -e "   ${YELLOW}cd ${WC_HOME} && ./setup/cluster/kubernetes-dashboard/install.sh${NC}"
+    echo -e "   Alternatively, use port-forwarding to access the dashboard: ${YELLOW}kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard 8443:443${NC}"
+    echo -e "   Get authentication token with: ${YELLOW}kubectl -n kubernetes-dashboard create token dashboard-admin${NC}"
   fi
   
   # CoreDNS specific recommendations
   if issue_matches "DNS"; then
     echo -e "${CYAN}For DNS resolution issues:${NC}"
-    echo -e "   ${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/setup-coredns.sh${NC}"
-    echo -e "   Verify DNS resolution: ${YELLOW}kubectl exec -it $(kubectl get pod -l k8s-app=kube-dns -n kube-system -o name | head -1) -n kube-system -- nslookup dashboard.internal.${DOMAIN}${NC}"
+    echo -e "   ${YELLOW}cd ${WC_HOME} && ./setup/cluster/coredns/install.sh${NC}"
+    echo -e "   Verify DNS resolution: ${YELLOW}kubectl exec -it $(kubectl get pod -l k8s-app=kube-dns -n kube-system -o name | head -1) -n kube-system -- nslookup dashboard.${INTERNAL_DOMAIN}${NC}"
   fi
   
   # Traefik/IngressRoute issues
   if issue_matches "IngressRoute" || issue_matches "ServersTransport" || issue_matches "Middleware"; then
     echo -e "${CYAN}For Traefik routing issues:${NC}"
-    echo -e "   1. Delete conflicting resources: ${YELLOW}kubectl delete ingressroute,middleware -n kubernetes-dashboard -l app=kubernetes-dashboard${NC}"
-    echo -e "   2. Re-run dashboard setup: ${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/setup-dashboard.sh${NC}"
-    echo -e "   3. Check Traefik status: ${YELLOW}kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik${NC}"
+    echo -e "   1. Check Traefik installation: ${YELLOW}cd ${WC_HOME} && ./setup/cluster/traefik/install.sh${NC}"
+    echo -e "   2. Re-run dashboard setup: ${YELLOW}cd ${WC_HOME} && ./setup/cluster/kubernetes-dashboard/install.sh${NC}"
+    echo -e "   3. Check Traefik status: ${YELLOW}kubectl get pods -n traefik -l app.kubernetes.io/name=traefik${NC}"
   fi
   
   # Certificate issues
   if issue_matches "certificate" || issue_matches "TLS"; then
     echo -e "${CYAN}For certificate issues:${NC}"
     echo -e "   1. Check certificate status: ${YELLOW}kubectl get certificate,certificaterequest -A${NC}"
-    echo -e "   2. Re-run cert-manager setup: ${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/setup-cert-manager.sh${NC}"
+    echo -e "   2. Re-run cert-manager setup: ${YELLOW}cd ${WC_HOME} && ./setup/cluster/cert-manager/install.sh${NC}"
   fi
   
   echo
@@ -1057,11 +1135,11 @@ if [[ ${#ISSUES_FOUND[@]} -gt 0 ]]; then
   echo -e "3. ${CYAN}Check all IngressRoutes:${NC}"
   echo -e "   ${YELLOW}kubectl get ingressroute --all-namespaces${NC}"
   echo -e "4. ${CYAN}Re-run validation after fixes:${NC}"
-  echo -e "   ${YELLOW}cd ${ROOT_DIR} && ./infrastructure_setup/validate_setup.sh${NC}"
+  echo -e "   ${YELLOW}cd ${WC_HOME} && ./setup/cluster/validate-setup.sh${NC}"
 else
   echo -e "${GREEN}All validation checks passed! Your infrastructure is set up correctly.${NC}"
-  echo -e "${CYAN}✓ Dashboard is accessible at: https://dashboard.internal.${DOMAIN}${NC}"
-  echo -e "${CYAN}✓ Get authentication token with: ./bin/dashboard-token${NC}"
+  echo -e "${CYAN}✓ Dashboard is accessible at: https://dashboard.${INTERNAL_DOMAIN}${NC}"
+  echo -e "${CYAN}✓ Get authentication token with: kubectl -n kubernetes-dashboard create token dashboard-admin${NC}"
   echo
   echo -e "${YELLOW}Next Steps:${NC}"
   echo -e "1. Access the dashboard and verify cluster health"

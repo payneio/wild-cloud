@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# Talos schematic management script
+# This script manages Talos Image Factory schematics centrally
+# Usage: wild-talos-schema [--force]
+
+set -euo pipefail
+
+# Check if WC_HOME is set
+if [ -z "${WC_HOME:-}" ]; then
+    echo "Error: WC_HOME environment variable not set. Run \`source .env\`."
+    exit 1
+fi
+
+CONFIG_FILE="${WC_HOME}/config.yaml"
+FORCE_UPLOAD=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE_UPLOAD=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: wild-talos-schema [--force]"
+            echo ""
+            echo "Manages Talos Image Factory schematics centrally."
+            echo ""
+            echo "Options:"
+            echo "  --force    Force re-upload even if schematicId already exists"
+            echo "  -h, --help Show this help message"
+            echo ""
+            echo "This script:"
+            echo "  1. Reads schematic from config.yaml (.cluster.nodes.talos.schematic)"
+            echo "  2. Uploads it to Image Factory if needed"
+            echo "  3. Stores the schematicId in config.yaml (.cluster.nodes.talos.schematicId)"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+echo "Managing Talos schematic for wildcloud..."
+
+# Check if schematic exists in config.yaml
+if ! yq eval '.cluster.nodes.talos.schematic' "$CONFIG_FILE" | grep -v "null" >/dev/null 2>&1; then
+    echo "Error: No schematic found in config.yaml at .cluster.nodes.talos.schematic"
+    echo "Expected schematic configuration with systemExtensions"
+    exit 1
+fi
+
+# Check if schematicId already exists (unless force)
+EXISTING_ID=$(yq eval '.cluster.nodes.talos.schematicId // ""' "$CONFIG_FILE")
+if [ -n "$EXISTING_ID" ] && [ "$FORCE_UPLOAD" = false ]; then
+    echo "✅ Schematic ID already exists: $EXISTING_ID"
+    echo "Use --force to re-upload and generate a new ID"
+    exit 0
+fi
+
+echo "Extracting schematic from config.yaml..."
+
+# Create temporary schematic file
+TEMP_SCHEMATIC=$(mktemp)
+trap "rm -f $TEMP_SCHEMATIC" EXIT
+
+# Extract schematic from config.yaml
+yq eval '.cluster.nodes.talos.schematic' "$CONFIG_FILE" > "$TEMP_SCHEMATIC"
+
+echo "Schematic contents:"
+cat "$TEMP_SCHEMATIC"
+echo ""
+
+# Upload schematic to Image Factory
+echo "Uploading schematic to Talos Image Factory..."
+SCHEMATIC_RESPONSE=$(curl -s -X POST --data-binary @"$TEMP_SCHEMATIC" https://factory.talos.dev/schematics)
+
+if [ -z "$SCHEMATIC_RESPONSE" ]; then
+    echo "Error: Failed to upload schematic to Image Factory"
+    exit 1
+fi
+
+# Parse schematic ID from JSON response
+SCHEMATIC_ID=$(echo "$SCHEMATIC_RESPONSE" | sed 's/.*"id":"\([^"]*\)".*/\1/')
+
+if [ -z "$SCHEMATIC_ID" ] || [ "$SCHEMATIC_ID" = "$SCHEMATIC_RESPONSE" ]; then
+    echo "Error: Failed to parse schematic ID from response: $SCHEMATIC_RESPONSE"
+    exit 1
+fi
+
+echo "✅ Schematic uploaded successfully!"
+echo "Schematic ID: $SCHEMATIC_ID"
+
+# Update config.yaml with schematic ID
+echo "Updating config.yaml with schematic ID..."
+yq eval ".cluster.nodes.talos.schematicId = \"$SCHEMATIC_ID\"" -i "$CONFIG_FILE"
+
+echo ""
+echo "🎉 Schematic management complete!"
+echo ""
+echo "Schematic ID: $SCHEMATIC_ID"
+echo "Saved to: config.yaml (.cluster.nodes.talos.schematicId)"
+echo ""
+echo "This schematic includes:"
+yq eval '.cluster.nodes.talos.schematic.customization.systemExtensions.officialExtensions[]' "$CONFIG_FILE" | sed 's/^/  - /'
+echo ""
+echo "Other scripts can now use this schematicId:"
+echo "  - setup/dnsmasq/bin/create-setup-bundle.sh (PXE boot assets)"
+echo "  - setup/cluster-nodes/create-installer-image.sh (custom installer)"

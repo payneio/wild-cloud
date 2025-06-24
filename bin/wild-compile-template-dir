@@ -1,0 +1,98 @@
+#!/bin/bash
+set -e
+set -o pipefail
+
+usage() {
+    echo "Usage: wild-compile-template-dir [options] <source_dir> [dest_dir]"
+    echo ""
+    echo "Recursively copy all files from source_dir to dest_dir, processing text files through wild-compile-template."
+    echo "Binary files are copied as-is. Directory structure is preserved."
+    echo ""
+    echo "Options:"
+    echo "  --clean       Delete destination directory before processing"
+    echo "  -h, --help    Show this help message"
+    echo ""
+    echo "Arguments:"
+    echo "  source_dir    Source directory to process"
+    echo "  dest_dir      Destination directory (default: source_dir_compiled)"
+    echo ""
+    echo "Examples:"
+    echo "  wild-compile-template-dir ./templates"
+    echo "  wild-compile-template-dir ./templates ./output"
+    echo "  wild-compile-template-dir --clean ./templates"
+    echo "  wild-compile-template-dir --clean ./templates ./output"
+}
+
+# Parse arguments
+clean_flag=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --clean)
+            clean_flag=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            usage
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+fi
+
+source_dir="$1"
+dest_dir="${2:-${source_dir}_compiled}"
+
+
+# Validate source directory
+if [[ ! -d "$source_dir" ]]; then
+    echo "Error: Source directory does not exist: $source_dir" >&2
+    exit 1
+fi
+
+# Clean destination directory if requested
+if [[ "$clean_flag" == true && -d "$dest_dir" ]]; then
+    echo "Cleaning destination directory: $dest_dir"
+    rm -rf "$dest_dir"
+fi
+
+# Create destination directory
+mkdir -p "$dest_dir"
+
+echo "Processing directory: $source_dir -> $dest_dir"
+
+# Process all files recursively
+find "$source_dir" -type f -print0 | while IFS= read -r -d '' file; do
+    # Get relative path from source directory
+    rel_path="${file#$source_dir/}"
+    dest_file="$dest_dir/$rel_path"
+    dest_file_dir="$(dirname "$dest_file")"
+    
+    # Create destination directory structure
+    mkdir -p "$dest_file_dir"
+    
+    # Check if file is text using file command
+    if file --mime-type "$file" 2>/dev/null | grep -q 'text/'; then
+        echo "  Processing: $rel_path"
+        if ! cat "$file" | wild-compile-template > "$dest_file"; then
+            echo "  ✗ Failed to process: $rel_path" >&2
+            exit 1
+        fi
+    else
+        echo "  Copying: $rel_path"
+        cp "$file" "$dest_file"
+    fi
+done
+
+echo "✅ Complete: All files processed successfully"

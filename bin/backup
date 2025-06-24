@@ -1,0 +1,23 @@
+#!/bin/bash
+# Simple backup script for your personal cloud
+# This is a placeholder for future implementation
+
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+cd "$SCRIPT_DIR"
+if [[ -f "../load-env.sh" ]]; then
+  source ../load-env.sh
+fi
+
+BACKUP_DIR="${PROJECT_DIR}/backups/$(date +%Y-%m-%d)"
+mkdir -p "$BACKUP_DIR"
+
+# Back up Kubernetes resources
+kubectl get all -A -o yaml > "$BACKUP_DIR/all-resources.yaml"
+kubectl get secrets -A -o yaml > "$BACKUP_DIR/secrets.yaml"
+kubectl get configmaps -A -o yaml > "$BACKUP_DIR/configmaps.yaml"
+
+# Back up persistent volumes
+# TODO: Add logic to back up persistent volume data
+
+echo "Backup completed: $BACKUP_DIR"

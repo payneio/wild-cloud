@@ -7,7 +7,7 @@ set -o pipefail
 usage() {
     echo "Usage: wild-compile-template [options]"
     echo ""
-    echo "Compile a gomplate template from stdin using ./config.yaml as context."
+    echo "Compile a gomplate template from stdin using \$WC_HOME/config.yaml as context."
     echo ""
     echo "Examples:"
     echo "  echo 'Hello {{.config.cluster.name}}' | wild-compile-template"
@@ -37,17 +37,26 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ ! -f "./config.yaml" ]; then
-    echo "Error: ./config.yaml not found in current directory" >&2
+# Check if WC_HOME is set
+if [ -z "${WC_HOME:-}" ]; then
+    echo "Error: WC_HOME environment variable not set" >&2
     exit 1
 fi
 
-# Build gomplate command with config context (enables .config shorthand)
-gomplate_cmd="gomplate -c config=./config.yaml"
+CONFIG_FILE="${WC_HOME}/config.yaml"
+SECRETS_FILE="${WC_HOME}/secrets.yaml"
+
+if [ ! -f "${CONFIG_FILE}" ]; then
+    echo "Error: config.yaml not found at ${CONFIG_FILE}" >&2
+    exit 1
+fi
+
+# Build gomplate command with config context
+gomplate_cmd="gomplate -c .=${CONFIG_FILE}"
 
 # Add secrets context if secrets.yaml exists (enables .secrets shorthand)
-if [ -f "./secrets.yaml" ]; then
-    gomplate_cmd="${gomplate_cmd} -c secrets=./secrets.yaml"
+if [ -f "${SECRETS_FILE}" ]; then
+    gomplate_cmd="${gomplate_cmd} -c secrets=${SECRETS_FILE}"
 fi
 
 # Execute gomplate with stdin

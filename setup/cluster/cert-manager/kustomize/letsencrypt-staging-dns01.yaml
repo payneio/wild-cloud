@@ -1,0 +1,26 @@
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    email: paul@payne.io
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    solvers:
+    # DNS-01 solver for wildcard certificates
+    - dns01:
+        cloudflare:
+          email: paul@payne.io
+          apiTokenSecretRef:
+            name: cloudflare-api-token
+            key: api-token
+      selector:
+        dnsZones:
+        - "payne.io"
+    # Keep the HTTP-01 solver for non-wildcard certificates
+    - http01:
+        ingress:
+          class: traefik

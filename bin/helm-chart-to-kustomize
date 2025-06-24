@@ -1,0 +1,136 @@
+#!/bin/bash
+set -e
+set -o pipefail
+
+usage() {
+    echo "Usage: helm-chart-to-kustomize <repo/chart> <release-name> <namespace> [values-file]"
+    echo ""
+    echo "Convert a Helm chart to Kustomize manifests."
+    echo ""
+    echo "Arguments:"
+    echo "  repo/chart    Helm chart repository and name (e.g., nginx-stable/nginx-ingress)"
+    echo "  release-name  Name for the Helm release (e.g., ingress-controller)"
+    echo "  namespace     Kubernetes namespace to deploy to"
+    echo "  values-file   Optional values.yaml file for customization"
+    echo ""
+    echo "Examples:"
+    echo "  helm-chart-to-kustomize nginx-stable/nginx-ingress ingress-controller ingress"
+    echo "  helm-chart-to-kustomize nginx-stable/nginx-ingress ingress-controller ingress values.yaml"
+    echo ""
+    echo "Output:"
+    echo "  Creates base/<release-name>/ directory with Kustomize-ready manifests"
+}
+
+# Parse arguments
+if [[ $# -lt 3 || "$1" == "-h" || "$1" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+chart_repo="$1"
+release_name="$2"
+namespace="$3"
+values_file="${4:-}"
+
+# Extract chart name from repo/chart
+chart_name="${chart_repo##*/}"
+
+echo "Converting Helm chart to Kustomize: $chart_repo -> base/$release_name"
+
+# Create working directories
+mkdir -p charts base
+
+# Fetch the Helm chart if not already present
+if [[ -d "charts/$chart_name" ]]; then
+    echo "Chart '$chart_name' already exists in 'charts/' directory. Skipping fetch."
+else
+    echo "Fetching Helm chart: $chart_repo"
+    
+    # Add repository if not already added
+    repo_name="$(echo "$chart_repo" | cut -d'/' -f1)"
+    if ! helm repo list 2>/dev/null | grep -q "^$repo_name"; then
+        echo "Adding Helm repository: $repo_name"
+        # Handle common repository URLs
+        case "$repo_name" in
+            "traefik")
+                helm repo add "$repo_name" "https://traefik.github.io/charts"
+                ;;
+            "nginx-stable")
+                helm repo add "$repo_name" "https://helm.nginx.com/stable"
+                ;;
+            *)
+                # Try generic helm.sh pattern first
+                helm repo add "$repo_name" "https://charts.helm.sh/$repo_name" 2>/dev/null || {
+                    echo "Error: Unknown repository '$repo_name'. Please add manually with 'helm repo add'."
+                    exit 1
+                }
+                ;;
+        esac
+        helm repo update
+    fi
+    
+    if ! helm search repo "$chart_repo" >/dev/null 2>&1; then
+        echo "Error: Helm chart '$chart_repo' not found in repositories."
+        exit 1
+    fi
+    
+    helm fetch --untar --untardir charts "$chart_repo"
+fi
+
+# Build helm template command
+template_cmd="helm template --output-dir base --namespace $namespace"
+if [[ -n "$values_file" && -f "$values_file" ]]; then
+    template_cmd="$template_cmd --values $values_file"
+    echo "Using values file: $values_file"
+fi
+template_cmd="$template_cmd $release_name charts/$chart_name"
+
+# Clean existing base directory if it exists
+if [[ -d "base/$release_name" ]]; then
+    echo "Existing base/$release_name directory found. Cleaning..."
+    rm -rf "base/$release_name"
+fi
+
+# Generate manifests with Helm template
+echo "Generating manifests with Helm template..."
+eval "$template_cmd"
+
+# Create namespace manifest
+echo "Creating namespace manifest..."
+cat <<EOF > "base/$release_name/namespace.yaml"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: $namespace
+EOF
+
+# Generate kustomization.yaml
+echo "Generating kustomization.yaml..."
+cd "base/$release_name"
+
+# Find all YAML files recursively and create kustomization
+resources=()
+while IFS= read -r -d '' file; do
+    # Get relative path from current directory
+    rel_path="${file#./}"
+    resources+=("$rel_path")
+done < <(find . -name "*.yaml" -not -name "kustomization.yaml" -print0 | sort -z)
+
+# Create kustomization.yaml with all resources
+cat > kustomization.yaml << EOF
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+EOF
+
+for resource in "${resources[@]}"; do
+    echo "- $resource" >> kustomization.yaml
+done
+
+echo "✅ Conversion complete!"
+echo ""
+echo "Generated files in: base/$release_name/"
+echo "To apply with kubectl:"
+echo "  kubectl apply -k base/$release_name"
+echo ""
+echo "To customize further, edit the files in base/$release_name/ and regenerate kustomization.yaml if needed."
