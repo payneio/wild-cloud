@@ -10,6 +10,8 @@ WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
 
 # ---
 
+# Create setup bundle.
+
 DNSMASQ_SETUP_DIR="${WC_ROOT}/setup/dnsmasq"
 BUNDLE_DIR="${DNSMASQ_SETUP_DIR}/setup-bundle"
 mkdir -p "${BUNDLE_DIR}"
@@ -66,3 +68,20 @@ wget http://boot.ipxe.org/arm64-efi/ipxe.efi -O ${FTPD_DIR}/ipxe-arm64.efi
 cp "${DNSMASQ_SETUP_DIR}/nginx.conf" "${BUNDLE_DIR}/nginx.conf"
 cp "${DNSMASQ_SETUP_DIR}/dnsmasq.conf" "${BUNDLE_DIR}/dnsmasq.conf"
 cp "${DNSMASQ_SETUP_DIR}/bin/setup.sh" "${BUNDLE_DIR}/setup.sh"
+
+# Copy setup bundle to DNSMasq server.
+# This is the server that will run DNSMasq and serve PXE boot files.
+
+SERVER_HOST=$(wild-config cloud.dns.ip) || exit 1
+SETUP_DIR="${WC_HOME}/setup/dnsmasq/setup-bundle"
+DESTINATION_DIR="~/dnsmasq-setup"
+
+echo "Copying DNSMasq setup files to ${SERVER_HOST}:${DESTINATION_DIR}..."
+scp -r ${SETUP_DIR}/* root@${SERVER_HOST}:${DESTINATION_DIR}
+
+# Run setup script on the DNSMasq server.
+echo "Running setup script on ${SERVER_HOST}..."
+ssh root@${SERVER_HOST} "bash -s" < "${SETUP_DIR}/setup.sh" || {
+    echo "Error: Failed to run setup script on ${SERVER_HOST}"
+    exit 1
+}
