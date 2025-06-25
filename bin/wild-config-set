@@ -1,0 +1,77 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# Usage function
+usage() {
+    echo "Usage: wild-config-set <yaml_key_path> <value>"
+    echo ""
+    echo "Set a value in \$WC_HOME/config.yaml using a YAML key path."
+    echo ""
+    echo "Examples:"
+    echo "  wild-config-set 'cluster.name' 'my-cluster'           # Set cluster name"
+    echo "  wild-config-set 'cloud.domain' 'example.com'         # Set domain"
+    echo "  wild-config-set 'cloud.dns.ip' '192.168.1.10'       # Set DNS IP"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help  Show this help message"
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            if [ -z "${KEY_PATH}" ]; then
+                KEY_PATH="$1"
+            elif [ -z "${VALUE}" ]; then
+                VALUE="$1"
+            else
+                echo "Too many arguments"
+                usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "${KEY_PATH}" ]; then
+    echo "Error: YAML key path is required"
+    usage
+    exit 1
+fi
+
+if [ -z "${VALUE}" ]; then
+    echo "Error: Value is required"
+    usage
+    exit 1
+fi
+
+# Check if WC_HOME is set
+if [ -z "${WC_HOME:-}" ]; then
+    echo "Error: WC_HOME environment variable not set" >&2
+    exit 1
+fi
+
+CONFIG_FILE="${WC_HOME}/config.yaml"
+
+# Create config file if it doesn't exist
+if [ ! -f "${CONFIG_FILE}" ]; then
+    echo "Creating new config file at ${CONFIG_FILE}"
+    echo "{}" > "${CONFIG_FILE}"
+fi
+
+# Use yq to set the value in the YAML file
+yq eval ".${KEY_PATH} = \"${VALUE}\"" -i "${CONFIG_FILE}"
+
+echo "Set ${KEY_PATH} = ${VALUE}"
