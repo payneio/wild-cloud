@@ -1,6 +1,7 @@
 ca
 .bots/*/sessions
 .working
+.env
 
 CLAUDE.md
 **/.claude/settings.local.json

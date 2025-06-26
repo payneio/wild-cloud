@@ -1,0 +1,69 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Daemon",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/experimental/daemon/main.go",
+            "console": "integratedTerminal",
+            "env": {
+                "GO_ENV": "development"
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "showLog": true
+        },
+        {
+            "name": "Daemon (Debug)",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/experimental/daemon/main.go",
+            "console": "integratedTerminal",
+            "env": {
+                "GO_ENV": "development"
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "showLog": true
+        },
+        {
+            "name": "App",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ],
+            "cwd": "${workspaceFolder}/experimental/app",
+            "console": "integratedTerminal",
+            "env": {
+                "BROWSER": "none"
+            },
+            "autoAttachChildProcesses": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Full Stack (Daemon + App)",
+            "configurations": [
+                "Daemon",
+                "App"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 1
+            }
+        }
+    ]
+}
