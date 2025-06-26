@@ -10,12 +10,39 @@ WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
 
 # ---
 
-# Create setup bundle.
-
-DNSMASQ_SETUP_DIR="${WC_ROOT}/setup/dnsmasq"
+SOURCE_DIR="${WILDCLOUD_ROOT}/setup/dnsmasq"
+DNSMASQ_SETUP_DIR="${WC_HOME}/setup/dnsmasq"
 BUNDLE_DIR="${DNSMASQ_SETUP_DIR}/setup-bundle"
 mkdir -p "${BUNDLE_DIR}"
 
+
+# Create local templates.
+
+if [ -d "${DNSMASQ_SETUP_DIR}" ]; then
+    echo "Warning: ${DNSMASQ_SETUP_DIR}/dnsmasq already exists"
+    read -p "Overwrite? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Skipping dnsmasq setup"
+    else
+        rm -rf "${DNSMASQ_SETUP_DIR}"
+        cp -r "${SOURCE_DIR}" "${DNSMASQ_SETUP_DIR}"
+        find "${DNSMASQ_SETUP_DIR}" -type f \( -name "*.yaml" -o -name "*.ipxe" -o -name "*.conf" \) | while read -r file; do
+            echo "Processing: ${file}"
+            wild-compile-template < "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
+        done
+        echo "Successfully created dnsmasq setup files from templates."
+    fi
+else
+    cp -r "${SOURCE_DIR}" "${DNSMASQ_SETUP_DIR}"
+    find "${DNSMASQ_SETUP_DIR}" -type f \( -name "*.yaml" -o -name "*.ipxe" -o -name "*.conf" \) | while read -r file; do
+        echo "Processing: ${file}"
+        wild-compile-template < "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
+    done
+    echo "Successfully created dnsmasq setup files from templates."
+fi
+
+# Create setup bundle.
 
 # Copy iPXE bootloader to ipxe-web.
 echo "Copying Talos kernel and initramfs for PXE boot..."
