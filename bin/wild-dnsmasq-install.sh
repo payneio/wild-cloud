@@ -19,7 +19,7 @@ mkdir -p "${BUNDLE_DIR}"
 # Create local templates.
 
 if [ -d "${DNSMASQ_SETUP_DIR}" ]; then
-    echo "Warning: ${DNSMASQ_SETUP_DIR}/dnsmasq already exists"
+    echo "Warning: ${DNSMASQ_SETUP_DIR} already exists"
     read -p "Overwrite? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -108,7 +108,7 @@ scp -r ${SETUP_DIR}/* root@${SERVER_HOST}:${DESTINATION_DIR}
 
 # Run setup script on the DNSMasq server.
 echo "Running setup script on ${SERVER_HOST}..."
-ssh root@${SERVER_HOST} "bash -s" < "${SETUP_DIR}/setup.sh" || {
+ssh root@${SERVER_HOST} "cd ${DESTINATION_DIR} && ./setup.sh" || {
     echo "Error: Failed to run setup script on ${SERVER_HOST}"
     exit 1
 }

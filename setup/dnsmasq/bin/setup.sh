@@ -10,7 +10,7 @@ sudo apt install -y dnsmasq nginx
 
 DNSMASQ_SETUP_DIR="."
 PXE_FTPD_DIR="${DNSMASQ_SETUP_DIR}/pxe-ftpd"
-PXE_WEB_ROOT="${DNSMASQ_SETUP_DIR}/pxe-web"
+PXE_WEB_ROOT="${DNSMASQ_SETUP_DIR}/ipxe-web"
 
 # Configure nginx.
 echo "Configuring nginx."
