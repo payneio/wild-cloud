@@ -1,13 +1,13 @@
 machine:
   install:
-    disk: {{ .cluster.nodes.control.node2.disk }}
+    disk: {{ index .cluster.nodes.active "{{NODE_IP}}" "disk" }}
     image: factory.talos.dev/metal-installer/{{ .cluster.nodes.talos.schematicId}}:{{ .cluster.nodes.talos.version}}
   network:
     interfaces:
-      - interface: {{ .cluster.nodes.control.node2.interface }}
+      - interface: {{ index .cluster.nodes.active "{{NODE_IP}}" "interface" }}
         dhcp: false
         addresses:
-          - {{ .cluster.nodes.control.node2.ip }}/24
+          - "{{NODE_IP}}/24"
         routes:
           - network: 0.0.0.0/0
             gateway: {{ .cloud.router.ip }}

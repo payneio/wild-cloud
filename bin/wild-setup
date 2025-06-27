@@ -8,7 +8,7 @@ WC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export WC_ROOT
 
 # =============================================================================
-# HELPER FUNCTIONS (used by all phases)
+# HELPER FUNCTIONS
 # =============================================================================
 
 # Colors for output
@@ -39,140 +39,62 @@ print_error() {
     echo -e "${RED}ERROR:${NC} $1"
 }
 
-# Function to prompt for input with default value
-prompt_with_default() {
-    local prompt="$1"
-    local default="$2"
-    local current_value="$3"
-    local result
-    
-    if [ -n "${current_value}" ] && [ "${current_value}" != "null" ]; then
-        printf "%s [current: %s]: " "${prompt}" "${current_value}" >&2
-        read -r result
-        if [ -z "${result}" ]; then
-            result="${current_value}"
-        fi
-    elif [ -n "${default}" ]; then
-        printf "%s [default: %s]: " "${prompt}" "${default}" >&2
-        read -r result
-        if [ -z "${result}" ]; then
-            result="${default}"
-        fi
-    else
-        printf "%s: " "${prompt}" >&2
-        read -r result
-        while [ -z "${result}" ]; do
-            printf "This value is required. Please enter a value: " >&2
-            read -r result
-        done
-    fi
-    
-    echo "${result}"
-}
-
-# Function to get current config value safely
-get_current_config() {
-    local key="$1"
-    if [ -f "${WC_HOME}/config.yaml" ]; then
-        set +e
-        result=$(wild-config "${key}" 2>/dev/null)
-        set -e
-        echo "${result}"
-    else
-        echo ""
-    fi
-}
-
-# Function to get current secret value safely
-get_current_secret() {
-    local key="$1"
-    if [ -f "${WC_HOME}/secrets.yaml" ]; then
-        set +e
-        result=$(wild-secret "${key}" 2>/dev/null)
-        set -e
-        echo "${result}"
-    else
-        echo ""
-    fi
-}
-
-UPDATE=false
-
 # Phase tracking variables
-SKIP_INSTALLER=false
-SKIP_HARDWARE=false
-SKIP_CONFIGS=false
-SKIP_INSTALL=false
+SKIP_SCAFFOLD=false
+SKIP_CLUSTER=false
+SKIP_SERVICES=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --update)
-            UPDATE=true
+        --skip-scaffold)
+            SKIP_SCAFFOLD=true
             shift
             ;;
-        --skip-installer)
-            SKIP_INSTALLER=true
+        --skip-cluster)
+            SKIP_CLUSTER=true
             shift
             ;;
-        --skip-hardware)
-            SKIP_HARDWARE=true
-            shift
-            ;;
-        --skip-configs)
-            SKIP_CONFIGS=true
-            shift
-            ;;
-        --skip-install)
-            SKIP_INSTALL=true
-            shift
-            ;;
-        --skip-all-phases)
-            SKIP_INSTALLER=true
-            SKIP_HARDWARE=true
-            SKIP_CONFIGS=true
-            SKIP_INSTALL=true
+        --skip-services)
+            SKIP_SERVICES=true
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 [--update] [phase-options]"
+            echo "Usage: $0 [component-options]"
             echo ""
-            echo "Initialize and set up a complete Wild-Cloud cluster deployment."
+            echo "Complete Wild-Cloud setup - runs all components in sequence."
             echo ""
-            echo "Cloud Options:"
-            echo "  --update            Update existing cloud files (overwrite)"
-            echo ""
-            echo "Phase Control Options:"
-            echo "  --skip-installer    Skip Phase 1 (Installer image generation)"
-            echo "  --skip-hardware     Skip Phase 2 (Node hardware detection)"
-            echo "  --skip-configs      Skip Phase 3 (Machine config generation)"
-            echo "  --skip-install      Skip Phase 4 (Cluster services installation)"
-            echo "  --skip-all-phases   Skip all phases (cloud setup only)"
-            echo ""
-            echo "General Options:"
+            echo "Component Control Options:"
+            echo "  --skip-scaffold     Skip scaffold setup (cloud initialization)"
+            echo "  --skip-cluster      Skip cluster setup (Phases 1-3)"
+            echo "  --skip-services     Skip services setup (Phase 4)"
             echo "  -h, --help          Show this help message"
             echo ""
-            echo "Phases:"
-            echo "  1. Installer image - Generate custom Talos installer URLs"
-            echo "  2. Hardware detection - Discover node interfaces and disks"
-            echo "  3. Machine configs - Generate Talos machine configurations"
-            echo "  4. Cluster services - Install MetalLB, Traefik, cert-manager, etc."
+            echo "This script runs:"
+            echo "  1. wild-setup-scaffold   # Cloud initialization and basic config"
+            echo "  2. wild-setup-cluster    # Cluster infrastructure (Phases 1-3)"
+            echo "  3. wild-setup-services   # Cluster services (Phase 4)"
             echo ""
-            echo "Configuration is done automatically when needed by each phase."
+            echo "You can also run these components individually:"
+            echo "  - wild-setup-scaffold  [--update]"
+            echo "  - wild-setup-cluster   [--skip-installer] [--skip-hardware] [--skip-configs]"
+            echo "  - wild-setup-services  [--skip-install]"
             echo ""
-            echo "By default, this script will only run in an empty directory."
-            echo "Use --update to overwrite existing cloud files while preserving other files."
+            echo "For detailed options for each component, use:"
+            echo "  wild-setup-scaffold --help"
+            echo "  wild-setup-cluster --help"
+            echo "  wild-setup-services --help"
             exit 0
             ;;
         -*)
             echo "Unknown option $1"
-            echo "Usage: $0 [--update] [phase-options]"
+            echo "Usage: $0 [component-options]"
             echo "Use --help for full usage information"
             exit 1
             ;;
         *)
             echo "Unexpected argument: $1"
-            echo "Usage: $0 [--update] [phase-options]"
+            echo "Usage: $0 [component-options]"
             echo "Use --help for full usage information"
             exit 1
             ;;
@@ -183,645 +105,111 @@ done
 WC_HOME="$(pwd)"
 export WC_HOME
 
-# Template directory (in WC_ROOT, never written to)
-TEMPLATE_DIR="${WC_ROOT}/setup/home-scaffold"
+print_header "Wild-Cloud Complete Setup"
+print_info "Running complete Wild-Cloud setup using modular components"
+echo ""
 
-if [ ! -d "${TEMPLATE_DIR}" ]; then
-    echo "Error: Template directory not found at ${TEMPLATE_DIR}"
-    exit 1
-fi
+# =============================================================================
+# COMPONENT 1: SCAFFOLD SETUP
+# =============================================================================
 
-# Check if cloud already exists
-if [ -d ".wildcloud" ]; then
-    echo "Wild-Cloud already exists in this directory."
-    echo ""
-    read -p "Do you want to update cloud files? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        UPDATE=true
-        echo "Updating cloud files..."
+if [ "${SKIP_SCAFFOLD}" = false ]; then
+    print_header "Component 1: Scaffold Setup"
+    print_info "Running wild-setup-scaffold..."
+    
+    if wild-setup-scaffold; then
+        print_success "Component 1 completed: Scaffold setup"
     else
-        echo "Skipping cloud update."
-        echo ""
+        print_error "Component 1 failed: Scaffold setup"
+        exit 1
     fi
+    echo ""
 else
-    # Check if current directory is empty for new cloud
-    if [ "${UPDATE}" = false ]; then
-        # Check if directory has any files (including hidden files, excluding . and .. and .git)
-        if [ -n "$(find . -maxdepth 1 -name ".*" -o -name "*" | grep -v "^\.$" | grep -v "^\.\.$" | grep -v "^\./\.git$" | head -1)" ]; then
-            echo "Error: Current directory is not empty"
-            echo "Use --update flag to overwrite existing cloud files while preserving other files"
-            exit 1
-        fi
-    fi
-    
-    echo "Initializing Wild-Cloud in $(pwd)"
-    UPDATE=false
+    print_info "Skipping Component 1: Scaffold Setup"
 fi
 
-# Initialize cloud files if needed
-if [ ! -d ".wildcloud" ] || [ "${UPDATE}" = true ]; then
-    if [ "${UPDATE}" = true ]; then
-        echo "Updating cloud files (preserving existing custom files)"
+# =============================================================================
+# COMPONENT 2: CLUSTER SETUP
+# =============================================================================
+
+if [ "${SKIP_CLUSTER}" = false ]; then
+    print_header "Component 2: Cluster Setup"
+    print_info "Running wild-setup-cluster..."
+    
+    if wild-setup-cluster; then
+        print_success "Component 2 completed: Cluster setup"
     else
-        echo "Creating cloud files"
+        print_error "Component 2 failed: Cluster setup"
+        exit 1
     fi
-
-    # Function to copy files and directories
-    copy_cloud_files() {
-        local src_dir="$1"
-        local dest_dir="$2"
-        
-        # Create destination directory if it doesn't exist
-        mkdir -p "${dest_dir}"
-        
-        # Copy directory structure
-        find "${src_dir}" -type d | while read -r src_subdir; do
-            rel_path="${src_subdir#${src_dir}}"
-            rel_path="${rel_path#/}"  # Remove leading slash if present
-            if [ -n "${rel_path}" ]; then
-                mkdir -p "${dest_dir}/${rel_path}"
-            fi
-        done
-        
-        # Copy files
-        find "${src_dir}" -type f | while read -r src_file; do
-            rel_path="${src_file#${src_dir}}"
-            rel_path="${rel_path#/}"  # Remove leading slash if present
-            dest_file="${dest_dir}/${rel_path}"
-            
-            # Ensure destination directory exists
-            dest_file_dir=$(dirname "${dest_file}")
-            mkdir -p "${dest_file_dir}"
-            
-            if [ "${UPDATE}" = true ] && [ -f "${dest_file}" ]; then
-                echo "Updating: ${rel_path}"
-            else
-                echo "Creating: ${rel_path}"
-            fi
-            
-            cp "${src_file}" "${dest_file}"
-        done
-    }
-
-    # Copy cloud files to current directory
-    copy_cloud_files "${TEMPLATE_DIR}" "."
-    
-    echo ""
-    echo "Wild-Cloud initialized successfully!"
-    echo ""
-fi
-
-
-# =============================================================================
-# CONFIGURATION HELPERS: Configure settings when needed by phases
-# =============================================================================
-
-configure_basic_settings() {
-    if [ ! -f "${WC_HOME}/config.yaml" ] || [ -z "$(get_current_config "operator.email")" ]; then
-        print_header "Basic Configuration"
-        
-        # Detect current network for suggestions
-        CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-        GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
-        SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-        print_info "Detected network: ${SUBNET_PREFIX}.x (gateway: ${GATEWAY_IP})"
-        
-        echo "This will configure basic settings for your wild-cloud deployment."
-        echo ""
-        
-        # Basic Information
-        current_email=$(get_current_config "operator.email")
-        email=$(prompt_with_default "Your email address (for Let's Encrypt certificates)" "" "${current_email}")
-        wild-config-set "operator.email" "${email}"
-
-        # Domain Configuration
-        current_base_domain=$(get_current_config "cloud.baseDomain")
-        base_domain=$(prompt_with_default "Your base domain name (e.g., example.com)" "" "${current_base_domain}")
-        wild-config-set "cloud.baseDomain" "${base_domain}"
-
-        current_domain=$(get_current_config "cloud.domain")
-        domain=$(prompt_with_default "Your public cloud domain" "cloud.${base_domain}" "${current_domain}")
-        wild-config-set "cloud.domain" "${domain}"
-
-        current_internal_domain=$(get_current_config "cloud.internalDomain")
-        internal_domain=$(prompt_with_default "Your internal cloud domain" "internal.${domain}" "${current_internal_domain}")
-        wild-config-set "cloud.internalDomain" "${internal_domain}"
-
-        # Derive cluster name from domain
-        cluster_name=$(echo "${domain}" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
-        wild-config-set "cluster.name" "${cluster_name}"
-        print_info "Set cluster name to: ${cluster_name}"
-        
-        print_success "Basic configuration completed"
-        echo ""
-    fi
-}
-
-configure_dns_and_certificates() {
-    if [ -z "$(get_current_config "cluster.certManager.cloudflare.domain")" ]; then
-        print_header "DNS and Certificate Configuration"
-        echo "For automatic SSL certificates and DNS management, we use Cloudflare."
-        echo ""
-
-        base_domain=$(get_current_config "cloud.baseDomain")
-        domain=$(get_current_config "cloud.domain")
-        
-        echo "Is your domain '${base_domain}' registered and managed through Cloudflare? (y/n)"
-        read -r use_cloudflare
-
-        if [[ "${use_cloudflare}" =~ ^[Yy]$ ]]; then
-            wild-config-set "cluster.certManager.cloudflare.domain" "${domain}"
-            
-            current_cf_token=$(get_current_secret "cloudflare.token")
-            if [ -z "${current_cf_token}" ]; then
-                echo ""
-                print_info "You'll need a Cloudflare API token with the following permissions:"
-                echo "  - Zone:Zone:Read"
-                echo "  - Zone:DNS:Edit"
-                echo "  - Include:All zones"
-                echo ""
-                echo "Create one at: https://dash.cloudflare.com/profile/api-tokens"
-                echo ""
-            fi
-            
-            cf_token=$(prompt_with_default "Cloudflare API token" "" "${current_cf_token}")
-            wild-secret-set "cloudflare.token" "${cf_token}"
-        else
-            print_warning "You'll need to configure DNS and SSL certificates manually."
-            print_info "Consider transferring your domain to Cloudflare for easier management."
-        fi
-        
-        print_success "DNS and certificate configuration completed"
-        echo ""
-    fi
-}
-
-configure_network_settings() {
-    if [ -z "$(get_current_config "cloud.router.ip")" ]; then
-        print_header "Network Configuration"
-        
-        CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-        GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
-        SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-
-        current_router_ip=$(get_current_config "cloud.router.ip")
-        router_ip=$(prompt_with_default "Router/Gateway IP" "${GATEWAY_IP}" "${current_router_ip}")
-        wild-config-set "cloud.router.ip" "${router_ip}"
-
-        current_dns_ip=$(get_current_config "cloud.dns.ip")
-        dns_ip=$(prompt_with_default "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50" "${current_dns_ip}")
-        wild-config-set "cloud.dns.ip" "${dns_ip}"
-
-        current_dhcp_range=$(get_current_config "cloud.dhcpRange")
-        dhcp_range=$(prompt_with_default "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200" "${current_dhcp_range}")
-        wild-config-set "cloud.dhcpRange" "${dhcp_range}"
-
-        current_interface=$(get_current_config "cloud.dnsmasq.interface")
-        interface=$(prompt_with_default "Network interface for dnsmasq" "eth0" "${current_interface}")
-        wild-config-set "cloud.dnsmasq.interface" "${interface}"
-
-        current_external_resolver=$(get_current_config "cloud.dns.externalResolver")
-        external_resolver=$(prompt_with_default "External DNS resolver" "1.1.1.1" "${current_external_resolver}")
-        wild-config-set "cloud.dns.externalResolver" "${external_resolver}"
-        
-        print_success "Network configuration completed"
-        echo ""
-    fi
-}
-
-configure_cluster_settings() {
-    if [ -z "$(get_current_config "cluster.nodes.talos.version")" ]; then
-        print_header "Kubernetes Cluster Configuration"
-        
-        CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-        SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-
-        current_talos_version=$(get_current_config "cluster.nodes.talos.version")
-        talos_version=$(prompt_with_default "Talos version" "v1.6.1" "${current_talos_version}")
-        wild-config-set "cluster.nodes.talos.version" "${talos_version}"
-
-        current_ip_pool=$(get_current_config "cluster.ipAddressPool")
-        ip_pool=$(prompt_with_default "MetalLB IP address pool" "${SUBNET_PREFIX}.80-${SUBNET_PREFIX}.89" "${current_ip_pool}")
-        wild-config-set "cluster.ipAddressPool" "${ip_pool}"
-
-        # Automatically set load balancer IP to first address in the pool
-        lb_ip=$(echo "${ip_pool}" | cut -d'-' -f1)
-        wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
-        print_info "Set load balancer IP to: ${lb_ip} (first IP in MetalLB pool)"
-
-        # Control plane nodes
-        echo ""
-        print_info "Configure control plane nodes (you need at least 3 for HA):"
-
-        current_vip=$(get_current_config "cluster.nodes.control.vip")
-        vip=$(prompt_with_default "Control plane virtual IP" "${SUBNET_PREFIX}.90" "${current_vip}")
-        wild-config-set "cluster.nodes.control.vip" "${vip}"
-
-        for i in 1 2 3; do
-            current_node_ip=$(get_current_config "cluster.nodes.control.node${i}.ip")
-            node_ip=$(prompt_with_default "Control plane node ${i} IP address" "${SUBNET_PREFIX}.$(( 90 + i ))" "${current_node_ip}")
-            wild-config-set "cluster.nodes.control.node${i}.ip" "${node_ip}"
-        done
-
-        # Talos schematic ID
-        current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
-        echo ""
-        print_info "Get your Talos schematic ID from: https://factory.talos.dev/"
-        print_info "This customizes Talos with the drivers needed for your hardware."
-        
-        # Look up default schematic ID from talos-schemas.yaml
-        default_schematic_id=""
-        schemas_file="${WC_ROOT}/setup/cluster-nodes/talos-schemas.yaml"
-        if [ -f "$schemas_file" ]; then
-            default_schematic_id=$(yq eval ".talos-schemas.\"${talos_version}\"" "$schemas_file" 2>/dev/null)
-            if [ -n "$default_schematic_id" ] && [ "$default_schematic_id" != "null" ]; then
-                print_info "Default schematic ID available for Talos $talos_version"
-            else
-                default_schematic_id=""
-            fi
-        fi
-        
-        schematic_id=$(prompt_with_default "Talos schematic ID" "${default_schematic_id}" "${current_schematic_id}")
-        wild-config-set "cluster.nodes.talos.schematicId" "${schematic_id}"
-
-        # External DNS
-        cluster_name=$(get_current_config "cluster.name")
-        current_owner_id=$(get_current_config "cluster.externalDns.ownerId")
-        owner_id=$(prompt_with_default "External DNS owner ID" "external-dns-${cluster_name}" "${current_owner_id}")
-        wild-config-set "cluster.externalDns.ownerId" "${owner_id}"
-        
-        print_success "Cluster configuration completed"
-        echo ""
-    fi
-}
-
-configure_storage_settings() {
-    if [ -z "$(get_current_config "cloud.nfs.host")" ]; then
-        print_header "Storage Configuration"
-        
-        dns_ip=$(get_current_config "cloud.dns.ip")
-        internal_domain=$(get_current_config "cloud.internalDomain")
-
-        current_nfs_host=$(get_current_config "cloud.nfs.host")
-        nfs_host=$(prompt_with_default "NFS server host" "${dns_ip}" "${current_nfs_host}")
-        wild-config-set "cloud.nfs.host" "${nfs_host}"
-
-        current_media_path=$(get_current_config "cloud.nfs.mediaPath")
-        media_path=$(prompt_with_default "NFS media path" "/mnt/storage/media" "${current_media_path}")
-        wild-config-set "cloud.nfs.mediaPath" "${media_path}"
-
-        current_storage_capacity=$(get_current_config "cloud.nfs.storageCapacity")
-        storage_capacity=$(prompt_with_default "Storage capacity for NFS PV" "1Ti" "${current_storage_capacity}")
-        wild-config-set "cloud.nfs.storageCapacity" "${storage_capacity}"
-
-        # Docker Registry
-        current_registry_host=$(get_current_config "cloud.dockerRegistryHost")
-        registry_host=$(prompt_with_default "Docker registry hostname" "registry.${internal_domain}" "${current_registry_host}")
-        wild-config-set "cloud.dockerRegistryHost" "${registry_host}"
-        
-        print_success "Storage configuration completed"
-        echo ""
-    fi
-}
-
-
-# =============================================================================
-# PHASE 1: Talos asset download
-# =============================================================================
-
-if [ "${SKIP_INSTALLER}" = false ]; then
-    print_header "Phase 1: Installer Image Generation"
-    
-    print_info "Running wild-cluster-node-image-create..."
-    wild-cluster-node-image-create
-    
-    print_success "Phase 1 completed: Installer image generated"
     echo ""
 else
-    print_info "Skipping Phase 1: Installer Image Generation"
+    print_info "Skipping Component 2: Cluster Setup"
 fi
 
 # =============================================================================
-# PHASE 2: Node Hardware Detection
+# COMPONENT 3: SERVICES SETUP
 # =============================================================================
 
-if [ "${SKIP_HARDWARE}" = false ]; then
-    print_header "Phase 2: Node Hardware Detection"
+if [ "${SKIP_SERVICES}" = false ]; then
+    print_header "Component 3: Services Setup"
+    print_info "Running wild-setup-services..."
     
-    # Configure basic settings, network, and cluster settings before node detection
-    configure_basic_settings
-    configure_network_settings
-    configure_cluster_settings
-    
-    print_info "This phase will help you register Talos nodes by discovering their hardware."
-    print_info "You'll need nodes booted in maintenance mode and accessible via IP."
-    echo ""
-    
-    # Register up to 3 control plane nodes
-    for i in 1 2 3; do
-        echo ""
-        print_info "Configure control plane node $i:"
-        read -p "Do you want to register control plane node $i now? (y/N): " -r register_node
-        
-        if [[ $register_node =~ ^[Yy]$ ]]; then
-            read -p "Enter maintenance IP for node $i: " -r NODE_IP
-            
-            if [ -z "$NODE_IP" ]; then
-                print_warning "Skipping node $i registration"
-                continue
-            fi
-            
-            print_info "Running wild-node-detect for node $i..."
-            NODE_INFO=$(wild-node-detect "$NODE_IP")
-            
-            if [ $? -eq 0 ] && [ -n "$NODE_INFO" ]; then
-                # Parse JSON response
-                INTERFACE=$(echo "$NODE_INFO" | jq -r '.interface')
-                SELECTED_DISK=$(echo "$NODE_INFO" | jq -r '.selected_disk')
-                AVAILABLE_DISKS=$(echo "$NODE_INFO" | jq -r '.disks | join(", ")')
-                
-                print_success "Hardware detected for node $i:"
-                print_info "  - Interface: $INTERFACE"
-                print_info "  - Available disks: $AVAILABLE_DISKS"
-                print_info "  - Selected disk: $SELECTED_DISK"
-                
-                # Allow user to override disk selection
-                echo ""
-                read -p "Use selected disk '$SELECTED_DISK'? (Y/n): " -r use_disk
-                if [[ $use_disk =~ ^[Nn]$ ]]; then
-                    echo "Available disks:"
-                    echo "$NODE_INFO" | jq -r '.disks[]' | nl -w2 -s') '
-                    read -p "Enter disk number: " -r disk_num
-                    SELECTED_DISK=$(echo "$NODE_INFO" | jq -r ".disks[$((disk_num-1))]")
-                    if [ "$SELECTED_DISK" = "null" ] || [ -z "$SELECTED_DISK" ]; then
-                        print_error "Invalid disk selection"
-                        continue
-                    fi
-                    print_info "Selected disk: $SELECTED_DISK"
-                fi
-                
-                # Update config.yaml with hardware info
-                print_info "Updating config.yaml for node $i..."
-                
-                # Get the target IP for this node from existing config
-                TARGET_IP=$(wild-config "cluster.nodes.control.node${i}.ip")
-                
-                # Update the unified node configuration
-                wild-config-set "cluster.nodes.active.${TARGET_IP}.interface" "$INTERFACE"
-                wild-config-set "cluster.nodes.active.${TARGET_IP}.disk" "$SELECTED_DISK"
-                wild-config-set "cluster.nodes.active.${TARGET_IP}.control" "true"
-                
-                print_success "Node $i registered successfully:"
-                print_info "  - Target IP: $TARGET_IP"
-                print_info "  - Interface: $INTERFACE"
-                print_info "  - Disk: $SELECTED_DISK"
-            else
-                print_error "Failed to detect hardware for node $i"
-                continue
-            fi
-        else
-            print_info "Skipping node $i registration"
-        fi
-    done
-    
-    # Register worker nodes
-    echo ""
-    print_info "Configure worker nodes (optional):"
-    while true; do
-        echo ""
-        read -p "Do you want to register a worker node? (y/N): " -r register_worker
-        
-        if [[ $register_worker =~ ^[Yy]$ ]]; then
-            read -p "Enter maintenance IP for worker node: " -r WORKER_IP
-            
-            if [ -z "$WORKER_IP" ]; then
-                print_warning "No IP provided, skipping worker node"
-                continue
-            fi
-            
-            print_info "Running wild-node-detect for worker node $WORKER_IP..."
-            WORKER_INFO=$(wild-node-detect "$WORKER_IP")
-            
-            if [ $? -eq 0 ] && [ -n "$WORKER_INFO" ]; then
-                # Parse JSON response
-                INTERFACE=$(echo "$WORKER_INFO" | jq -r '.interface')
-                SELECTED_DISK=$(echo "$WORKER_INFO" | jq -r '.selected_disk')
-                AVAILABLE_DISKS=$(echo "$WORKER_INFO" | jq -r '.disks | join(", ")')
-                
-                print_success "Hardware detected for worker node $WORKER_IP:"
-                print_info "  - Interface: $INTERFACE"
-                print_info "  - Available disks: $AVAILABLE_DISKS"
-                print_info "  - Selected disk: $SELECTED_DISK"
-                
-                # Allow user to override disk selection
-                echo ""
-                read -p "Use selected disk '$SELECTED_DISK'? (Y/n): " -r use_disk
-                if [[ $use_disk =~ ^[Nn]$ ]]; then
-                    echo "Available disks:"
-                    echo "$WORKER_INFO" | jq -r '.disks[]' | nl -w2 -s') '
-                    read -p "Enter disk number: " -r disk_num
-                    SELECTED_DISK=$(echo "$WORKER_INFO" | jq -r ".disks[$((disk_num-1))]")
-                    if [ "$SELECTED_DISK" = "null" ] || [ -z "$SELECTED_DISK" ]; then
-                        print_error "Invalid disk selection"
-                        continue
-                    fi
-                    print_info "Selected disk: $SELECTED_DISK"
-                fi
-                
-                # Update config.yaml with worker hardware info
-                print_info "Updating config.yaml for worker node $WORKER_IP..."
-                
-                # Store under unified cluster.nodes.active.<ip-address>
-                wild-config-set "cluster.nodes.active.${WORKER_IP}.interface" "$INTERFACE"
-                wild-config-set "cluster.nodes.active.${WORKER_IP}.disk" "$SELECTED_DISK"
-                wild-config-set "cluster.nodes.active.${WORKER_IP}.control" "false"
-                
-                print_success "Worker node $WORKER_IP registered successfully:"
-                print_info "  - IP: $WORKER_IP"
-                print_info "  - Interface: $INTERFACE"
-                print_info "  - Disk: $SELECTED_DISK"
-            else
-                print_error "Failed to detect hardware for worker node $WORKER_IP"
-                continue
-            fi
-        else
-            break
-        fi
-    done
-    
-    print_success "Phase 2 completed: Node hardware detection"
-    echo ""
-else
-    print_info "Skipping Phase 2: Node Hardware Detection"
-fi
-
-# =============================================================================
-# PHASE 3: Machine Config Generation
-# =============================================================================
-
-if [ "${SKIP_CONFIGS}" = false ]; then
-    print_header "Phase 3: Machine Config Generation"
-    
-    # Configure basic settings and cluster settings if needed
-    configure_basic_settings
-    configure_cluster_settings
-    
-    # Get all registered nodes from cluster.nodes.active
-    REGISTERED_NODES=()
-    if yq eval '.cluster.nodes.active // {}' "${WC_HOME}/config.yaml" | grep -q "interface"; then
-        ALL_NODE_IPS=$(yq eval '.cluster.nodes.active | keys | .[]' "${WC_HOME}/config.yaml" 2>/dev/null || echo "")
-        
-        for NODE_IP in $ALL_NODE_IPS; do
-            # Remove quotes from yq output
-            NODE_IP=$(echo "$NODE_IP" | tr -d '"')
-            REGISTERED_NODES+=("$NODE_IP")
-        done
-    fi
-
-    if [ ${#REGISTERED_NODES[@]} -eq 0 ]; then
-        print_warning "No nodes have been registered yet."
-        print_info "Run Phase 2 (Hardware Detection) first to register nodes"
+    if wild-setup-services; then
+        print_success "Component 3 completed: Services setup"
     else
-        print_info "Generating machine configs for ${#REGISTERED_NODES[@]} registered nodes..."
-        
-        # Generate config for each registered node
-        for NODE_IP in "${REGISTERED_NODES[@]}"; do
-            echo ""
-            print_info "Generating config for node $NODE_IP..."
-            wild-cluster-node-machine-config-generate "$NODE_IP"
-        done
-        
-        echo ""
-        print_success "All machine configurations generated successfully!"
-    fi
-    
-    print_success "Phase 3 completed: Machine config generation"
-    echo ""
-else
-    print_info "Skipping Phase 3: Machine Config Generation"
-fi
-
-# =============================================================================
-# PHASE 4: Cluster Services Installation
-# =============================================================================
-
-if [ "${SKIP_INSTALL}" = false ]; then
-    print_header "Phase 4: Cluster Services Installation"
-    
-    # Configure settings needed for cluster services
-    configure_basic_settings
-    configure_dns_and_certificates
-    configure_network_settings
-    configure_storage_settings
-    
-    print_info "This phase prepares and installs core cluster services (MetalLB, Traefik, cert-manager, etc.)"
-    print_warning "Make sure your cluster is running and kubectl is configured!"
-    
-    # Generate cluster services setup files
-    print_info "Generating cluster services setup files..."
-    wild-cluster-services-generate --force
-    
-    read -p "Do you want to install cluster services now? (y/N): " -r install_services
-    
-    if [[ $install_services =~ ^[Yy]$ ]]; then
-        print_info "Installing cluster services..."
-        wild-cluster-services-up
-        SERVICES_INSTALLED=true
-    else
-        print_info "Skipping cluster services installation"
-        print_info "You can install them later with: wild-cluster-services-up"
-        SKIP_INSTALL=true
-    fi
-    
-    if [ "${SKIP_INSTALL}" = false ] && [ "${SERVICES_INSTALLED:-false}" = true ]; then
-        print_success "Phase 4 completed: Cluster services installation"
+        print_error "Component 3 failed: Services setup"
+        exit 1
     fi
     echo ""
 else
-    print_info "Skipping Phase 4: Cluster Services Installation"
+    print_info "Skipping Component 3: Services Setup"
 fi
 
 # =============================================================================
 # FINAL SUMMARY
 # =============================================================================
 
-print_header "Wild-Cloud Setup Complete!"
+print_header "Wild-Cloud Complete Setup Finished!"
 
-print_success "All phases completed successfully!"
+print_success "All components completed successfully!"
 echo ""
 
 print_info "What was accomplished:"
-print_info "✅ Cloud setup completed"
-
-if [ "${SKIP_INSTALLER}" = false ]; then
-    print_info "✅ Phase 1: Installer image generated"
+if [ "${SKIP_SCAFFOLD}" = false ]; then
+    print_info "✅ Component 1: Scaffold setup (cloud initialization)"
 else
-    print_info "⏸️  Phase 1: Installer image generation (skipped)"
+    print_info "⏸️  Component 1: Scaffold setup (skipped)"
 fi
 
-if [ "${SKIP_HARDWARE}" = false ]; then
-    print_info "✅ Phase 2: Node hardware detection completed"
+if [ "${SKIP_CLUSTER}" = false ]; then
+    print_info "✅ Component 2: Cluster setup (Phases 1-3)"
 else
-    print_info "⏸️  Phase 2: Node hardware detection (skipped)"
+    print_info "⏸️  Component 2: Cluster setup (skipped)"
 fi
 
-if [ "${SKIP_CONFIGS}" = false ]; then
-    print_info "✅ Phase 3: Machine configs generated"
+if [ "${SKIP_SERVICES}" = false ]; then
+    print_info "✅ Component 3: Services setup (Phase 4)"
 else
-    print_info "⏸️  Phase 3: Machine config generation (skipped)"
-fi
-
-if [ "${SKIP_INSTALL}" = false ]; then
-    print_info "✅ Phase 4: Cluster services installed"
-else
-    print_info "⏸️  Phase 4: Cluster services installation (skipped)"
-fi
-
-print_info "✅ Configuration completed as needed by phases"
-
-echo ""
-print_info "Configuration files:"
-echo "  - ${WC_HOME}/config.yaml"
-echo "  - ${WC_HOME}/secrets.yaml"
-
-if [ -d "${WC_HOME}/setup/cluster-nodes/final" ] && [ "$(ls -A ${WC_HOME}/setup/cluster-nodes/final 2>/dev/null)" ]; then
-    echo ""
-    print_info "Machine configurations:"
-    for config_file in "${WC_HOME}/setup/cluster-nodes/final"/*.yaml; do
-        if [ -f "$config_file" ]; then
-            echo "  - $config_file"
-        fi
-    done
+    print_info "⏸️  Component 3: Services setup (skipped)"
 fi
 
 echo ""
-print_info "Next steps:"
-echo "  1. Review your configuration and generated files"
+print_info "Individual components can be run separately:"
+echo "  - wild-setup-scaffold  # Cloud initialization"
+echo "  - wild-setup-cluster   # Cluster infrastructure" 
+echo "  - wild-setup-services  # Cluster services"
 
-if [ "${SKIP_HARDWARE}" = true ] || [ "${SKIP_CONFIGS}" = true ]; then
-    echo "  2. Complete any skipped phases as needed:"
-    if [ "${SKIP_HARDWARE}" = true ]; then
-        echo "     - Re-run wild-init to continue with hardware detection"
+echo ""
+if [ "${SKIP_SERVICES}" = false ] && command -v kubectl >/dev/null 2>&1; then
+    if [ -f "${WC_HOME}/config.yaml" ]; then
+        INTERNAL_DOMAIN=$(wild-config cloud.internalDomain 2>/dev/null || echo "your-internal-domain")
+        print_info "Your Wild-Cloud is ready!"
+        echo "  Dashboard: https://dashboard.${INTERNAL_DOMAIN}"
+        echo "  Get token: ./bin/dashboard-token"
     fi
-    if [ "${SKIP_CONFIGS}" = true ]; then
-        echo "     - Generate machine configs after hardware detection"
-    fi
-fi
-
-if [ "${SKIP_INSTALL}" = false ] && command -v kubectl >/dev/null 2>&1; then
-    INTERNAL_DOMAIN=$(wild-config cloud.internalDomain 2>/dev/null || echo "your-internal-domain")
-    echo "  2. Access the dashboard at: https://dashboard.${INTERNAL_DOMAIN}"
-    echo "  3. Get the dashboard token with: ./bin/dashboard-token"
-    echo ""
-    echo "To verify components, run:"
-    echo "  - kubectl get pods -n cert-manager"
-    echo "  - kubectl get pods -n externaldns"
-    echo "  - kubectl get pods -n kubernetes-dashboard"
-    echo "  - kubectl get clusterissuers"
 else
-    echo "  2. Set up your cluster and install services"
-    echo "  3. Apply machine configurations to your nodes"
+    print_info "Complete the remaining setup steps to finalize your Wild-Cloud deployment"
 fi
 
-echo ""
+print_success "Wild-Cloud setup completed!"

@@ -1,10 +1,7 @@
 machine:
   install:
-    disk: /dev/sdc
-  network:
-    interfaces:
-      - interface: enp4s0
-        dhcp: true
+    disk: {{ index .cluster.nodes.active "{{NODE_IP}}" "disk" }}
+    image: factory.talos.dev/metal-installer/{{ .cluster.nodes.talos.schematicId}}:{{ .cluster.nodes.talos.version}}
   kubelet:
     extraMounts:
       - destination: /var/lib/longhorn
@@ -14,9 +11,3 @@ machine:
           - bind
           - rshared
           - rw
-# NOTE: System extensions need to be added via Talos Image Factory
-# customization:
-#   systemExtensions:
-#     officialExtensions:
-#       - siderolabs/iscsi-tools
-#       - siderolabs/util-linux-tools

@@ -154,33 +154,9 @@ NODE_SETUP_DIR="${WC_HOME}/setup/cluster-nodes"
 
 # Check if cluster has been initialized
 if [ ! -f "${NODE_SETUP_DIR}/generated/secrets.yaml" ]; then
-    print_error "Cluster not initialized. You need to run cluster initialization first."
-    print_info "This typically involves running talosctl gen config to generate initial secrets."
-    
-    read -p "Do you want to generate initial cluster secrets now? (y/N): " -r generate_secrets
-    if [[ $generate_secrets =~ ^[Yy]$ ]]; then
-        # Generate cluster secrets
-        CLUSTER_NAME=$(wild-config cluster.name)
-        VIP=$(wild-config cluster.nodes.control.vip)
-        
-        if [ -z "$CLUSTER_NAME" ] || [ -z "$VIP" ]; then
-            print_error "Missing cluster configuration. cluster.name and cluster.nodes.control.vip are required."
-            print_info "Run 'wild-setup' or 'wild-init' first to configure your cluster"
-            exit 1
-        fi
-        
-        print_info "Generating initial cluster configuration..."
-        mkdir -p "${NODE_SETUP_DIR}/generated"
-        
-        cd "${NODE_SETUP_DIR}/generated"
-        talosctl gen config "$CLUSTER_NAME" "https://$VIP:6443"
-        cd - >/dev/null
-        
-        print_success "Initial cluster configuration generated"
-    else
-        print_warning "Skipping machine config generation - cluster secrets required"
-        exit 1
-    fi
+    print_error "Cluster not initialized. Base cluster configuration is required."
+    print_info "Run 'wild-cluster-config-generate' first to generate cluster secrets and base configs"
+    exit 1
 fi
 
 # Get cluster configuration from config.yaml
@@ -223,12 +199,14 @@ print_info "Compiling patch template for $NODE_TYPE node $NODE_IP..."
 if [ "$NODE_TYPE" = "control" ]; then
     TEMPLATE_FILE="${TEMPLATE_SOURCE_DIR}/patch.templates/controlplane.yaml"
     BASE_CONFIG="${NODE_SETUP_DIR}/generated/controlplane.yaml"
-    OUTPUT_CONFIG="${NODE_SETUP_DIR}/final/controlplane-${NODE_IP}.yaml"
 else
     TEMPLATE_FILE="${TEMPLATE_SOURCE_DIR}/patch.templates/worker.yaml" 
     BASE_CONFIG="${NODE_SETUP_DIR}/generated/worker.yaml"
-    OUTPUT_CONFIG="${NODE_SETUP_DIR}/final/worker-${NODE_IP}.yaml"
 fi
+
+# Use IP as the patch name and output config name
+PATCH_FILE="${NODE_SETUP_DIR}/patch/${NODE_IP}.yaml"
+OUTPUT_CONFIG="${NODE_SETUP_DIR}/final/${NODE_IP}.yaml"
 
 # Check if the patch template exists
 if [ ! -f "$TEMPLATE_FILE" ]; then
@@ -238,14 +216,14 @@ if [ ! -f "$TEMPLATE_FILE" ]; then
 fi
 
 # Create a temporary template with the node IP for gomplate processing
-TEMP_TEMPLATE="/tmp/${NODE_TYPE}-${NODE_IP}-$(date +%s).yaml"
+TEMP_TEMPLATE="/tmp/${NODE_IP//\//_}-$(date +%s).yaml"
 sed "s/{{NODE_IP}}/${NODE_IP}/g" "$TEMPLATE_FILE" > "$TEMP_TEMPLATE"
-cat "$TEMP_TEMPLATE" | wild-compile-template > "${NODE_SETUP_DIR}/patch/${NODE_TYPE}-${NODE_IP}.yaml"
+cat "$TEMP_TEMPLATE" | wild-compile-template > "$PATCH_FILE"
 rm -f "$TEMP_TEMPLATE"
 
 # Generate final machine config for the specified node
 print_info "Generating final machine configuration..."
-talosctl machineconfig patch "$BASE_CONFIG" --patch @"${NODE_SETUP_DIR}/patch/${NODE_TYPE}-${NODE_IP}.yaml" -o "$OUTPUT_CONFIG"
+talosctl machineconfig patch "$BASE_CONFIG" --patch @"$PATCH_FILE" -o "$OUTPUT_CONFIG"
 
 # Update talosctl context with this node
 print_info "Updating talosctl context..."
@@ -254,7 +232,7 @@ talosctl config node "$NODE_IP"
 print_success "Machine configuration generated successfully!"
 echo ""
 print_info "Generated files:"
-print_info "  - Patch: ${NODE_SETUP_DIR}/patch/${NODE_TYPE}-${NODE_IP}.yaml"
+print_info "  - Patch: $PATCH_FILE"
 print_info "  - Final config: $OUTPUT_CONFIG"
 echo ""
 print_info "Template used: ${TEMPLATE_FILE}"

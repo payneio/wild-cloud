@@ -34,7 +34,7 @@ sleep 30
 
 # Setup Cloudflare API token for DNS01 challenges
 echo "Creating Cloudflare API token secret..."
-CLOUDFLARE_API_TOKEN=$(wild-secret cluster.certManager.cloudflare.apiToken) || exit 1
+CLOUDFLARE_API_TOKEN=$(wild-secret cloudflare.token) || exit 1
 kubectl create secret generic cloudflare-api-token \
   --namespace cert-manager \
   --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \

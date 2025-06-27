@@ -21,7 +21,7 @@ kubectl apply -k ${EXTERNALDNS_DIR}/kustomize
 
 # Setup Cloudflare API token secret
 echo "Creating Cloudflare API token secret..."
-CLOUDFLARE_API_TOKEN=$(wild-secret cluster.certManager.cloudflare.apiToken) || exit 1
+CLOUDFLARE_API_TOKEN=$(wild-secret cloudflare.token) || exit 1
 kubectl create secret generic cloudflare-api-token \
   --namespace externaldns \
   --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \
