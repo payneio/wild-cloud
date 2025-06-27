@@ -4,22 +4,11 @@
 
 Congratulations! Everything you need for setting up and managing your wild-cloud is in this directory.
 
-The first step is to set up your configuration and secrets.
-
-```bash
-mv config.example.yaml config.yaml
-mv secrets.example.yaml secrets.yaml
-```
-
-> Configuration instructions TBD.
-
-Generate your custom setup:
+Just run:
 
 ```bash
 wild-setup
 ```
-
-Now, continue setup with your custom [setup instructions](./setup/README.md).
 
 ## Using your wild-cloud
 

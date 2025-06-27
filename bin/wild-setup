@@ -207,8 +207,8 @@ if [ -d ".wildcloud" ]; then
 else
     # Check if current directory is empty for new cloud
     if [ "${UPDATE}" = false ]; then
-        # Check if directory has any files (including hidden files, excluding . and ..)
-        if [ -n "$(find . -maxdepth 1 -name ".*" -o -name "*" | grep -v "^\.$" | head -1)" ]; then
+        # Check if directory has any files (including hidden files, excluding . and .. and .git)
+        if [ -n "$(find . -maxdepth 1 -name ".*" -o -name "*" | grep -v "^\.$" | grep -v "^\.\.$" | grep -v "^\./\.git$" | head -1)" ]; then
             echo "Error: Current directory is not empty"
             echo "Use --update flag to overwrite existing cloud files while preserving other files"
             exit 1
@@ -429,7 +429,20 @@ configure_cluster_settings() {
         echo ""
         print_info "Get your Talos schematic ID from: https://factory.talos.dev/"
         print_info "This customizes Talos with the drivers needed for your hardware."
-        schematic_id=$(prompt_with_default "Talos schematic ID" "" "${current_schematic_id}")
+        
+        # Look up default schematic ID from talos-schemas.yaml
+        default_schematic_id=""
+        schemas_file="${WC_ROOT}/setup/cluster-nodes/talos-schemas.yaml"
+        if [ -f "$schemas_file" ]; then
+            default_schematic_id=$(yq eval ".talos-schemas.\"${talos_version}\"" "$schemas_file" 2>/dev/null)
+            if [ -n "$default_schematic_id" ] && [ "$default_schematic_id" != "null" ]; then
+                print_info "Default schematic ID available for Talos $talos_version"
+            else
+                default_schematic_id=""
+            fi
+        fi
+        
+        schematic_id=$(prompt_with_default "Talos schematic ID" "${default_schematic_id}" "${current_schematic_id}")
         wild-config-set "cluster.nodes.talos.schematicId" "${schematic_id}"
 
         # External DNS
@@ -472,75 +485,16 @@ configure_storage_settings() {
     fi
 }
 
-# =============================================================================
-# HELPER FUNCTION: Copy setup files on demand
-# =============================================================================
-
-copy_setup_files_if_needed() {
-    local setup_type="$1"  # "cluster-nodes" or "cluster"
-    
-    SOURCE_DIR="${WC_ROOT}/setup"
-    DEST_DIR="${WC_HOME}/setup"
-    
-    if [ ! -d "${DEST_DIR}/${setup_type}" ]; then
-        print_info "Copying ${setup_type} setup files..."
-        mkdir -p "${DEST_DIR}"
-        cp -r "${SOURCE_DIR}/${setup_type}" "${DEST_DIR}/${setup_type}"
-        
-        # Copy README if it doesn't exist
-        if [ ! -f "${DEST_DIR}/README.md" ]; then
-            cp "${SOURCE_DIR}/README.md" "${DEST_DIR}/README.md"
-        fi
-        
-        print_success "${setup_type} setup files copied"
-    fi
-}
 
 # =============================================================================
-# PHASE 1: Installer Image Generation
+# PHASE 1: Talos asset download
 # =============================================================================
 
 if [ "${SKIP_INSTALLER}" = false ]; then
     print_header "Phase 1: Installer Image Generation"
     
-    # Configure basic settings and cluster settings if needed
-    configure_basic_settings
-    configure_cluster_settings
-    
-    # Get Talos version and schematic ID from config
-    TALOS_VERSION=$(wild-config cluster.nodes.talos.version)
-    SCHEMATIC_ID=$(wild-config cluster.nodes.talos.schematicId)
-
-    print_info "Creating custom Talos installer image..."
-    print_info "Talos version: $TALOS_VERSION"
-
-    # Check if schematic ID exists
-    if [ -z "$SCHEMATIC_ID" ] || [ "$SCHEMATIC_ID" = "null" ]; then
-        print_error "No schematic ID found in config.yaml"
-        print_info "You can get a schematic ID from: https://factory.talos.dev/"
-        read -p "Enter schematic ID: " -r SCHEMATIC_ID
-        if [ -n "$SCHEMATIC_ID" ]; then
-            wild-config-set "cluster.nodes.talos.schematicId" "$SCHEMATIC_ID"
-        else
-            print_error "Schematic ID required for installer image generation"
-            exit 1
-        fi
-    fi
-
-    print_info "Schematic ID: $SCHEMATIC_ID"
-    
-    if [ -f "${WC_HOME}/config.yaml" ] && yq eval '.cluster.nodes.talos.schematic.customization.systemExtensions.officialExtensions' "${WC_HOME}/config.yaml" >/dev/null 2>&1; then
-        echo ""
-        print_info "Schematic includes:"
-        yq eval '.cluster.nodes.talos.schematic.customization.systemExtensions.officialExtensions[]' "${WC_HOME}/config.yaml" | sed 's/^/  - /' || true
-        echo ""
-    fi
-
-    # Generate installer image URL
-    INSTALLER_URL="factory.talos.dev/metal-installer/$SCHEMATIC_ID:$TALOS_VERSION"
-
-    print_success "Custom installer image URL generated!"
-    print_info "Installer URL: $INSTALLER_URL"
+    print_info "Running wild-cluster-node-image-create..."
+    wild-cluster-node-image-create
     
     print_success "Phase 1 completed: Installer image generated"
     echo ""
@@ -549,14 +503,15 @@ else
 fi
 
 # =============================================================================
-# PHASE 2: Node Hardware Detection (from detect-node-hardware.sh)
+# PHASE 2: Node Hardware Detection
 # =============================================================================
 
 if [ "${SKIP_HARDWARE}" = false ]; then
     print_header "Phase 2: Node Hardware Detection"
     
-    # Configure basic settings and cluster settings if needed
+    # Configure basic settings, network, and cluster settings before node detection
     configure_basic_settings
+    configure_network_settings
     configure_cluster_settings
     
     print_info "This phase will help you register Talos nodes by discovering their hardware."
@@ -577,98 +532,121 @@ if [ "${SKIP_HARDWARE}" = false ]; then
                 continue
             fi
             
-            print_info "Registering Talos control plane node $i at $NODE_IP..."
-
-            # Test connectivity
-            print_info "Testing connectivity to node..."
-            if ! talosctl -n "$NODE_IP" get links --insecure >/dev/null 2>&1; then
-                print_error "Cannot connect to node at $NODE_IP"
-                print_info "Make sure the node is booted in maintenance mode and accessible."
-                continue
-            fi
-
-            print_success "Node is accessible"
-
-            # Discover network interfaces
-            print_info "Discovering network interfaces..."
-
-            # Find the interface with default route
-            CONNECTED_INTERFACE=$(talosctl -n "$NODE_IP" get routes --insecure -o json 2>/dev/null | \
-                jq -s -r '.[] | select(.spec.destination == "0.0.0.0/0" and .spec.gateway != null) | .spec.outLinkName' | \
-                head -1)
-
-            if [ -n "$CONNECTED_INTERFACE" ]; then
-                ACTIVE_INTERFACE="$CONNECTED_INTERFACE"
-                print_success "Discovered connected interface (with default route): $ACTIVE_INTERFACE"
+            print_info "Running wild-node-detect for node $i..."
+            NODE_INFO=$(wild-node-detect "$NODE_IP")
+            
+            if [ $? -eq 0 ] && [ -n "$NODE_INFO" ]; then
+                # Parse JSON response
+                INTERFACE=$(echo "$NODE_INFO" | jq -r '.interface')
+                SELECTED_DISK=$(echo "$NODE_INFO" | jq -r '.selected_disk')
+                AVAILABLE_DISKS=$(echo "$NODE_INFO" | jq -r '.disks | join(", ")')
+                
+                print_success "Hardware detected for node $i:"
+                print_info "  - Interface: $INTERFACE"
+                print_info "  - Available disks: $AVAILABLE_DISKS"
+                print_info "  - Selected disk: $SELECTED_DISK"
+                
+                # Allow user to override disk selection
+                echo ""
+                read -p "Use selected disk '$SELECTED_DISK'? (Y/n): " -r use_disk
+                if [[ $use_disk =~ ^[Nn]$ ]]; then
+                    echo "Available disks:"
+                    echo "$NODE_INFO" | jq -r '.disks[]' | nl -w2 -s') '
+                    read -p "Enter disk number: " -r disk_num
+                    SELECTED_DISK=$(echo "$NODE_INFO" | jq -r ".disks[$((disk_num-1))]")
+                    if [ "$SELECTED_DISK" = "null" ] || [ -z "$SELECTED_DISK" ]; then
+                        print_error "Invalid disk selection"
+                        continue
+                    fi
+                    print_info "Selected disk: $SELECTED_DISK"
+                fi
+                
+                # Update config.yaml with hardware info
+                print_info "Updating config.yaml for node $i..."
+                
+                # Get the target IP for this node from existing config
+                TARGET_IP=$(wild-config "cluster.nodes.control.node${i}.ip")
+                
+                # Update the unified node configuration
+                wild-config-set "cluster.nodes.active.${TARGET_IP}.interface" "$INTERFACE"
+                wild-config-set "cluster.nodes.active.${TARGET_IP}.disk" "$SELECTED_DISK"
+                wild-config-set "cluster.nodes.active.${TARGET_IP}.control" "true"
+                
+                print_success "Node $i registered successfully:"
+                print_info "  - Target IP: $TARGET_IP"
+                print_info "  - Interface: $INTERFACE"
+                print_info "  - Disk: $SELECTED_DISK"
             else
-                # Fallback: find any active ethernet interface
-                print_info "No default route found, checking for active ethernet interfaces..."
-                ACTIVE_INTERFACE=$(talosctl -n "$NODE_IP" get links --insecure -o json 2>/dev/null | \
-                    jq -s -r '.[] | select(.spec.operationalState == "up" and .spec.type == "ether" and .metadata.id != "lo") | .metadata.id' | \
-                    head -1)
-                
-                if [ -z "$ACTIVE_INTERFACE" ]; then
-                    print_error "No active ethernet interface found"
-                    print_info "Available interfaces:"
-                    talosctl -n "$NODE_IP" get links --insecure
-                    continue
-                fi
-                
-                print_success "Discovered active interface: $ACTIVE_INTERFACE"
-            fi
-
-            # Discover available disks
-            print_info "Discovering available disks..."
-            AVAILABLE_DISKS=$(talosctl -n "$NODE_IP" get disks --insecure -o json 2>/dev/null | \
-                jq -s -r '.[] | select(.spec.size > 10000000000) | .metadata.id' | \
-                head -5)
-
-            if [ -z "$AVAILABLE_DISKS" ]; then
-                print_error "No suitable disks found (must be >10GB)"
-                print_info "Available disks:"
-                talosctl -n "$NODE_IP" get disks --insecure
+                print_error "Failed to detect hardware for node $i"
                 continue
             fi
-
-            print_info "Available disks (>10GB):"
-            echo "$AVAILABLE_DISKS"
-            echo ""
-
-            # Let user choose disk
-            print_info "Select installation disk for node $i:"
-            select INSTALL_DISK in $AVAILABLE_DISKS; do
-                if [ -n "${INSTALL_DISK:-}" ]; then
-                    break
-                fi
-                echo "Invalid selection. Please try again."
-            done
-
-            # Add /dev/ prefix if not present
-            if [[ "$INSTALL_DISK" != /dev/* ]]; then
-                INSTALL_DISK="/dev/$INSTALL_DISK"
-            fi
-
-            print_success "Selected disk: $INSTALL_DISK"
-
-            # Update config.yaml with per-node configuration
-            print_info "Updating config.yaml with node $i configuration..."
-
-            CONFIG_FILE="${WC_HOME}/config.yaml"
-
-            # Get the target IP for this node from the existing config
-            TARGET_IP=$(yq eval ".cluster.nodes.control.node${i}.ip" "$CONFIG_FILE")
-
-            # Use yq to update the per-node configuration
-            yq eval ".cluster.nodes.control.node${i}.ip = \"$TARGET_IP\"" -i "$CONFIG_FILE"
-            yq eval ".cluster.nodes.control.node${i}.interface = \"$ACTIVE_INTERFACE\"" -i "$CONFIG_FILE"
-            yq eval ".cluster.nodes.control.node${i}.disk = \"$INSTALL_DISK\"" -i "$CONFIG_FILE"
-
-            print_success "Updated config.yaml for node $i:"
-            print_info "  - Target IP: $TARGET_IP"
-            print_info "  - Network interface: $ACTIVE_INTERFACE"  
-            print_info "  - Installation disk: $INSTALL_DISK"
         else
             print_info "Skipping node $i registration"
+        fi
+    done
+    
+    # Register worker nodes
+    echo ""
+    print_info "Configure worker nodes (optional):"
+    while true; do
+        echo ""
+        read -p "Do you want to register a worker node? (y/N): " -r register_worker
+        
+        if [[ $register_worker =~ ^[Yy]$ ]]; then
+            read -p "Enter maintenance IP for worker node: " -r WORKER_IP
+            
+            if [ -z "$WORKER_IP" ]; then
+                print_warning "No IP provided, skipping worker node"
+                continue
+            fi
+            
+            print_info "Running wild-node-detect for worker node $WORKER_IP..."
+            WORKER_INFO=$(wild-node-detect "$WORKER_IP")
+            
+            if [ $? -eq 0 ] && [ -n "$WORKER_INFO" ]; then
+                # Parse JSON response
+                INTERFACE=$(echo "$WORKER_INFO" | jq -r '.interface')
+                SELECTED_DISK=$(echo "$WORKER_INFO" | jq -r '.selected_disk')
+                AVAILABLE_DISKS=$(echo "$WORKER_INFO" | jq -r '.disks | join(", ")')
+                
+                print_success "Hardware detected for worker node $WORKER_IP:"
+                print_info "  - Interface: $INTERFACE"
+                print_info "  - Available disks: $AVAILABLE_DISKS"
+                print_info "  - Selected disk: $SELECTED_DISK"
+                
+                # Allow user to override disk selection
+                echo ""
+                read -p "Use selected disk '$SELECTED_DISK'? (Y/n): " -r use_disk
+                if [[ $use_disk =~ ^[Nn]$ ]]; then
+                    echo "Available disks:"
+                    echo "$WORKER_INFO" | jq -r '.disks[]' | nl -w2 -s') '
+                    read -p "Enter disk number: " -r disk_num
+                    SELECTED_DISK=$(echo "$WORKER_INFO" | jq -r ".disks[$((disk_num-1))]")
+                    if [ "$SELECTED_DISK" = "null" ] || [ -z "$SELECTED_DISK" ]; then
+                        print_error "Invalid disk selection"
+                        continue
+                    fi
+                    print_info "Selected disk: $SELECTED_DISK"
+                fi
+                
+                # Update config.yaml with worker hardware info
+                print_info "Updating config.yaml for worker node $WORKER_IP..."
+                
+                # Store under unified cluster.nodes.active.<ip-address>
+                wild-config-set "cluster.nodes.active.${WORKER_IP}.interface" "$INTERFACE"
+                wild-config-set "cluster.nodes.active.${WORKER_IP}.disk" "$SELECTED_DISK"
+                wild-config-set "cluster.nodes.active.${WORKER_IP}.control" "false"
+                
+                print_success "Worker node $WORKER_IP registered successfully:"
+                print_info "  - IP: $WORKER_IP"
+                print_info "  - Interface: $INTERFACE"
+                print_info "  - Disk: $SELECTED_DISK"
+            else
+                print_error "Failed to detect hardware for worker node $WORKER_IP"
+                continue
+            fi
+        else
+            break
         fi
     done
     
@@ -679,7 +657,7 @@ else
 fi
 
 # =============================================================================
-# PHASE 3: Machine Config Generation (from generate-machine-configs.sh)
+# PHASE 3: Machine Config Generation
 # =============================================================================
 
 if [ "${SKIP_CONFIGS}" = false ]; then
@@ -689,111 +667,33 @@ if [ "${SKIP_CONFIGS}" = false ]; then
     configure_basic_settings
     configure_cluster_settings
     
-    # Copy cluster-nodes setup files if needed for this phase
-    copy_setup_files_if_needed "cluster-nodes"
-    
-    NODE_SETUP_DIR="${WC_HOME}/setup/cluster-nodes"
-
-    # Check if cluster has been initialized
-    if [ ! -f "${NODE_SETUP_DIR}/generated/secrets.yaml" ]; then
-        print_error "Cluster not initialized. You need to run cluster initialization first."
-        print_info "This typically involves running talosctl gen config to generate initial secrets."
+    # Get all registered nodes from cluster.nodes.active
+    REGISTERED_NODES=()
+    if yq eval '.cluster.nodes.active // {}' "${WC_HOME}/config.yaml" | grep -q "interface"; then
+        ALL_NODE_IPS=$(yq eval '.cluster.nodes.active | keys | .[]' "${WC_HOME}/config.yaml" 2>/dev/null || echo "")
         
-        read -p "Do you want to generate initial cluster secrets now? (y/N): " -r generate_secrets
-        if [[ $generate_secrets =~ ^[Yy]$ ]]; then
-            # Generate cluster secrets
-            CLUSTER_NAME=$(wild-config cluster.name)
-            VIP=$(wild-config cluster.nodes.control.vip)
-            
-            print_info "Generating initial cluster configuration..."
-            mkdir -p "${NODE_SETUP_DIR}/generated"
-            
-            cd "${NODE_SETUP_DIR}/generated"
-            talosctl gen config "$CLUSTER_NAME" "https://$VIP:6443"
-            cd - >/dev/null
-            
-            print_success "Initial cluster configuration generated"
-        else
-            print_warning "Skipping machine config generation - cluster secrets required"
-            SKIP_CONFIGS=true
-        fi
+        for NODE_IP in $ALL_NODE_IPS; do
+            # Remove quotes from yq output
+            NODE_IP=$(echo "$NODE_IP" | tr -d '"')
+            REGISTERED_NODES+=("$NODE_IP")
+        done
     fi
 
-    if [ "${SKIP_CONFIGS}" = false ]; then
-        # Get cluster configuration from config.yaml
-        CLUSTER_NAME=$(wild-config cluster.name)
-        VIP=$(wild-config cluster.nodes.control.vip)
-
-        print_info "Generating machine configurations for cluster: $CLUSTER_NAME"
-
-        # Check which nodes have been registered (have hardware config)
-        REGISTERED_NODES=()
-        for i in 1 2 3; do
-            if yq eval ".cluster.nodes.control.node${i}.interface" "${WC_HOME}/config.yaml" | grep -v "null" >/dev/null 2>&1; then
-                NODE_IP=$(wild-config cluster.nodes.control.node${i}.ip)
-                REGISTERED_NODES+=("$NODE_IP")
-                print_success "Node $i registered: $NODE_IP"
-            else
-                print_info "Node $i not registered yet"
-            fi
-        done
-
-        if [ ${#REGISTERED_NODES[@]} -eq 0 ]; then
-            print_warning "No nodes have been registered yet."
-            print_info "You can register nodes in Phase 4 or run detect-node-hardware.sh separately."
-        else
-            # Create directories
-            mkdir -p "${NODE_SETUP_DIR}/final" "${NODE_SETUP_DIR}/patch"
-
-            # Compile patch templates for registered nodes only
-            print_info "Compiling patch templates..."
-
-            for i in 1 2 3; do
-                if yq eval ".cluster.nodes.control.node${i}.interface" "${WC_HOME}/config.yaml" | grep -v "null" >/dev/null 2>&1; then
-                    print_info "Compiling template for control plane node $i..."
-                    cat "${NODE_SETUP_DIR}/patch.templates/controlplane-node-${i}.yaml" | wild-compile-template > "${NODE_SETUP_DIR}/patch/controlplane-node-${i}.yaml"
-                fi
-            done
-
-            # Always compile worker template (doesn't require hardware detection)
-            if [ -f "${NODE_SETUP_DIR}/patch.templates/worker.yaml" ]; then
-                cat "${NODE_SETUP_DIR}/patch.templates/worker.yaml" | wild-compile-template > "${NODE_SETUP_DIR}/patch/worker.yaml"
-            fi
-
-            # Generate final machine configs for registered nodes only
-            print_info "Generating final machine configurations..."
-            for i in 1 2 3; do
-                if yq eval ".cluster.nodes.control.node${i}.interface" "${WC_HOME}/config.yaml" | grep -v "null" >/dev/null 2>&1; then
-                    print_info "Generating config for control plane node $i..."
-                    talosctl machineconfig patch "${NODE_SETUP_DIR}/generated/controlplane.yaml" --patch @"${NODE_SETUP_DIR}/patch/controlplane-node-${i}.yaml" -o "${NODE_SETUP_DIR}/final/controlplane-node-${i}.yaml"
-                fi
-            done
-
-            # Always generate worker config (doesn't require hardware detection)
-            if [ -f "${NODE_SETUP_DIR}/patch/worker.yaml" ]; then
-                print_info "Generating worker config..."
-                talosctl machineconfig patch "${NODE_SETUP_DIR}/generated/worker.yaml" --patch @"${NODE_SETUP_DIR}/patch/worker.yaml" -o "${NODE_SETUP_DIR}/final/worker.yaml"
-            fi
-
-            # Update talosctl context with registered nodes
-            print_info "Updating talosctl context..."
-            if [ ${#REGISTERED_NODES[@]} -gt 0 ]; then
-                talosctl config node "${REGISTERED_NODES[@]}"
-            fi
-
-            print_success "Machine configurations generated successfully!"
+    if [ ${#REGISTERED_NODES[@]} -eq 0 ]; then
+        print_warning "No nodes have been registered yet."
+        print_info "Run Phase 2 (Hardware Detection) first to register nodes"
+    else
+        print_info "Generating machine configs for ${#REGISTERED_NODES[@]} registered nodes..."
+        
+        # Generate config for each registered node
+        for NODE_IP in "${REGISTERED_NODES[@]}"; do
             echo ""
-            print_info "Generated configs:"
-            for i in 1 2 3; do
-                if [ -f "${NODE_SETUP_DIR}/final/controlplane-node-${i}.yaml" ]; then
-                    NODE_IP=$(wild-config cluster.nodes.control.node${i}.ip)
-                    print_info "  - ${NODE_SETUP_DIR}/final/controlplane-node-${i}.yaml (target IP: $NODE_IP)"
-                fi
-            done
-            if [ -f "${NODE_SETUP_DIR}/final/worker.yaml" ]; then
-                print_info "  - ${NODE_SETUP_DIR}/final/worker.yaml"
-            fi
-        fi
+            print_info "Generating config for node $NODE_IP..."
+            wild-cluster-node-machine-config-generate "$NODE_IP"
+        done
+        
+        echo ""
+        print_success "All machine configurations generated successfully!"
     fi
     
     print_success "Phase 3 completed: Machine config generation"
@@ -803,7 +703,7 @@ else
 fi
 
 # =============================================================================
-# PHASE 4: Cluster Services Installation (from install-all.sh)
+# PHASE 4: Cluster Services Installation
 # =============================================================================
 
 if [ "${SKIP_INSTALL}" = false ]; then
@@ -815,107 +715,26 @@ if [ "${SKIP_INSTALL}" = false ]; then
     configure_network_settings
     configure_storage_settings
     
-    # Copy cluster services setup files if needed for this phase
-    copy_setup_files_if_needed "cluster"
-    
-    print_info "This phase installs core cluster services (MetalLB, Traefik, cert-manager, etc.)"
+    print_info "This phase prepares and installs core cluster services (MetalLB, Traefik, cert-manager, etc.)"
     print_warning "Make sure your cluster is running and kubectl is configured!"
+    
+    # Generate cluster services setup files
+    print_info "Generating cluster services setup files..."
+    wild-cluster-services-generate --force
     
     read -p "Do you want to install cluster services now? (y/N): " -r install_services
     
     if [[ $install_services =~ ^[Yy]$ ]]; then
-        # Check if kubectl works
-        if ! kubectl cluster-info >/dev/null 2>&1; then
-            print_error "kubectl is not configured or cluster is not accessible"
-            print_info "Make sure your cluster is running and kubeconfig is set up"
-            print_info "You can get kubeconfig with: talosctl kubeconfig"
-            SKIP_INSTALL=true
-        else
-            print_info "Installing cluster services..."
-            
-            CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
-            
-            if [ ! -d "$CLUSTER_SETUP_DIR" ]; then
-                print_error "Cluster setup directory not found: $CLUSTER_SETUP_DIR"
-                print_info "Make sure Phase 2 (Setup Template Copying) has been completed"
-                SKIP_INSTALL=true
-            else
-                cd "$CLUSTER_SETUP_DIR"
-                
-                print_info "Installing MetalLB..."
-                if [ -f "./metallb/install.sh" ]; then
-                    ./metallb/install.sh
-                else
-                    print_warning "MetalLB install script not found"
-                fi
-                
-                print_info "Installing Longhorn..."
-                if [ -f "./longhorn/install.sh" ]; then
-                    ./longhorn/install.sh
-                else
-                    print_warning "Longhorn install script not found"
-                fi
-                
-                print_info "Installing Traefik..."
-                if [ -f "./traefik/install.sh" ]; then
-                    ./traefik/install.sh
-                else
-                    print_warning "Traefik install script not found"
-                fi
-                
-                print_info "Installing CoreDNS..."
-                if [ -f "./coredns/install.sh" ]; then
-                    ./coredns/install.sh
-                else
-                    print_warning "CoreDNS install script not found"
-                fi
-                
-                print_info "Installing cert-manager..."
-                if [ -f "./cert-manager/install.sh" ]; then
-                    ./cert-manager/install.sh
-                else
-                    print_warning "cert-manager install script not found"
-                fi
-                
-                print_info "Installing ExternalDNS..."
-                if [ -f "./externaldns/install.sh" ]; then
-                    ./externaldns/install.sh
-                else
-                    print_warning "ExternalDNS install script not found"
-                fi
-                
-                print_info "Installing Kubernetes Dashboard..."
-                if [ -f "./kubernetes-dashboard/install.sh" ]; then
-                    ./kubernetes-dashboard/install.sh
-                else
-                    print_warning "Kubernetes Dashboard install script not found"
-                fi
-                
-                print_info "Installing NFS..."
-                if [ -f "./nfs/install.sh" ]; then
-                    ./nfs/install.sh
-                else
-                    print_warning "NFS install script not found"
-                fi
-                
-                print_info "Installing Docker Registry..."
-                if [ -f "./docker-registry/install.sh" ]; then
-                    ./docker-registry/install.sh
-                else
-                    print_warning "Docker Registry install script not found"
-                fi
-                
-                cd - >/dev/null
-                
-                print_success "Infrastructure setup complete!"
-            fi
-        fi
+        print_info "Installing cluster services..."
+        wild-cluster-services-up
+        SERVICES_INSTALLED=true
     else
         print_info "Skipping cluster services installation"
+        print_info "You can install them later with: wild-cluster-services-up"
         SKIP_INSTALL=true
     fi
     
-    if [ "${SKIP_INSTALL}" = false ]; then
+    if [ "${SKIP_INSTALL}" = false ] && [ "${SERVICES_INSTALLED:-false}" = true ]; then
         print_success "Phase 4 completed: Cluster services installation"
     fi
     echo ""

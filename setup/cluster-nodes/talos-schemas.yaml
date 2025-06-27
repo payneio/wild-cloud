@@ -1,0 +1,20 @@
+# Talos Version to Schematic ID Mappings
+#
+# This file contains mappings of Talos versions to their corresponding
+# default schematic IDs for wild-cloud deployments.
+#
+# Schematic IDs are generated from factory.talos.dev and include
+# common system extensions needed for typical hardware.
+#
+# To add new versions:
+# 1. Go to https://factory.talos.dev/
+# 2. Select the system extensions you need
+# 3. Generate the schematic
+# 4. Add the version and schematic ID below
+
+# Format: "version": "schematic-id"
+talos-schemas:
+  "v1.6.1": "e6230b0db3fd355a0bb77a9de74af41a9f3edd168f913cbd94807629a2116d07"
+  # Add more versions here as needed
+  # "v1.6.2": "example-schematic-id-here"
+  # "v1.7.0": "example-schematic-id-here"

@@ -1,0 +1,212 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# Get WC_ROOT (where this script and templates live)
+WC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
+export WC_ROOT
+
+# Set up cloud directory (WC_HOME is where user's cloud will be)
+WC_HOME="$(pwd)"
+export WC_HOME
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Helper functions
+print_header() {
+    echo -e "\n${BLUE}=== $1 ===${NC}\n"
+}
+
+print_info() {
+    echo -e "${BLUE}INFO:${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}WARNING:${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}SUCCESS:${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}ERROR:${NC} $1"
+}
+
+# Usage function
+usage() {
+    echo "Usage: wild-cluster-services-generate [options]"
+    echo ""
+    echo "Generate cluster services setup files by compiling templates."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message"
+    echo "  --force             Force regeneration even if files exist"
+    echo ""
+    echo "This script will:"
+    echo "  - Copy cluster service templates from WC_ROOT to WC_HOME"
+    echo "  - Compile all templates with current configuration"
+    echo "  - Prepare services for installation"
+    echo ""
+    echo "Requirements:"
+    echo "  - Must be run from a wild-cloud directory"
+    echo "  - Basic cluster configuration must be completed"
+    echo "  - Service configuration (DNS, storage, etc.) must be completed"
+}
+
+# Parse arguments
+FORCE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --force)
+            FORCE=true
+            shift
+            ;;
+        -*)
+            echo "Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            echo "Unexpected argument: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Check if we're in a wild-cloud directory
+if [ ! -d ".wildcloud" ]; then
+    print_error "You must run this script from a wild-cloud directory"
+    print_info "Run 'wild-setup' or 'wild-init' first to initialize a wild-cloud project"
+    exit 1
+fi
+
+# Check if basic configuration exists
+if [ ! -f "${WC_HOME}/config.yaml" ]; then
+    print_error "Configuration file not found: ${WC_HOME}/config.yaml"
+    print_info "Run 'wild-setup' first to configure your cluster"
+    exit 1
+fi
+
+# =============================================================================
+# CLUSTER SERVICES SETUP GENERATION
+# =============================================================================
+
+print_header "Cluster Services Setup Generation"
+
+SOURCE_DIR="${WC_ROOT}/setup/cluster"
+DEST_DIR="${WC_HOME}/setup/cluster"
+
+# Check if source directory exists
+if [ ! -d "$SOURCE_DIR" ]; then
+    print_error "Cluster setup source directory not found: $SOURCE_DIR"
+    print_info "Make sure the wild-cloud repository is properly set up"
+    exit 1
+fi
+
+# Check if destination already exists
+if [ -d "$DEST_DIR" ] && [ "$FORCE" = false ]; then
+    print_warning "Cluster setup directory already exists: $DEST_DIR"
+    read -p "Overwrite existing files? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Skipping cluster services generation"
+        exit 0
+    fi
+    print_info "Regenerating cluster setup files..."
+    rm -rf "$DEST_DIR"
+elif [ "$FORCE" = true ] && [ -d "$DEST_DIR" ]; then
+    print_info "Force regeneration enabled, removing existing files..."
+    rm -rf "$DEST_DIR"
+fi
+
+# Copy cluster setup files
+print_info "Copying cluster setup files from repository..."
+mkdir -p "${WC_HOME}/setup"
+cp -r "$SOURCE_DIR" "$DEST_DIR"
+
+# Copy README if it doesn't exist
+if [ ! -f "${WC_HOME}/setup/README.md" ]; then
+    cp "${WC_ROOT}/setup/README.md" "${WC_HOME}/setup/README.md"
+fi
+
+print_success "Cluster setup files copied"
+
+# Compile templates
+print_info "Compiling service templates with current configuration..."
+
+COMPILED_COUNT=0
+find "$DEST_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.conf" -o -name "*.json" \) | while read -r file; do
+    # Skip files that don't contain template variables
+    if ! grep -q "{{" "$file" 2>/dev/null; then
+        continue
+    fi
+    
+    print_info "Compiling: ${file#${WC_HOME}/}"
+    wild-compile-template < "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+    COMPILED_COUNT=$((COMPILED_COUNT + 1))
+done
+
+print_success "Template compilation completed"
+
+# Verify required configuration
+print_info "Verifying service configuration..."
+
+MISSING_CONFIG=()
+
+# Check essential configuration values
+if [ -z "$(wild-config cluster.name 2>/dev/null)" ]; then
+    MISSING_CONFIG+=("cluster.name")
+fi
+
+if [ -z "$(wild-config cloud.domain 2>/dev/null)" ]; then
+    MISSING_CONFIG+=("cloud.domain")
+fi
+
+if [ -z "$(wild-config cluster.ipAddressPool 2>/dev/null)" ]; then
+    MISSING_CONFIG+=("cluster.ipAddressPool")
+fi
+
+if [ -z "$(wild-config operator.email 2>/dev/null)" ]; then
+    MISSING_CONFIG+=("operator.email")
+fi
+
+if [ ${#MISSING_CONFIG[@]} -gt 0 ]; then
+    print_warning "Some required configuration values are missing:"
+    for config in "${MISSING_CONFIG[@]}"; do
+        print_warning "  - $config"
+    done
+    print_info "Run 'wild-setup' to complete the configuration"
+fi
+
+print_success "Cluster services setup generation completed!"
+echo ""
+print_info "Generated setup directory: $DEST_DIR"
+echo ""
+print_info "Available services:"
+for service_dir in "$DEST_DIR"/*; do
+    if [ -d "$service_dir" ] && [ -f "$service_dir/install.sh" ]; then
+        service_name=$(basename "$service_dir")
+        print_info "  - $service_name"
+    fi
+done
+
+echo ""
+print_info "Next steps:"
+echo "  1. Review the generated configuration files in $DEST_DIR"
+echo "  2. Make sure your cluster is running and kubectl is configured"
+echo "  3. Install services with: wild-cluster-services-up"
+echo "  4. Or install individual services by running their install.sh scripts"
+
+print_success "Ready for cluster services installation!"

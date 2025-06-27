@@ -1,0 +1,163 @@
+#!/bin/bash
+
+# Node registration script for Talos cluster setup
+# This script discovers hardware configuration from a node in maintenance mode
+# and updates config.yaml with per-node hardware settings
+
+set -euo pipefail
+
+# Usage function
+usage() {
+    echo "Usage: wild-node-detect <node-ip>"
+    echo ""
+    echo "Detect hardware configuration of a Talos node in maintenance mode."
+    echo "Returns JSON with discovered hardware information."
+    echo ""
+    echo "Arguments:"
+    echo "  node-ip       Current IP of the node in maintenance mode"
+    echo ""
+    echo "Examples:"
+    echo "  wild-node-detect 192.168.8.168"
+    echo "  NODE_INFO=\$(wild-node-detect 192.168.8.169)"
+    echo ""
+    echo "This script will:"
+    echo "  - Query the node for available network interfaces"
+    echo "  - Query the node for available disks"  
+    echo "  - Return JSON with hardware information"
+    echo ""
+    echo "Output JSON format:"
+    echo '  {"interface": "eth0", "disks": ["/dev/sda", "/dev/nvme0n1"], "selected_disk": "/dev/sda"}'
+}
+
+# Parse arguments
+if [ $# -ne 1 ]; then
+    usage
+    exit 1
+fi
+
+NODE_IP="$1"
+
+echo "Detecting hardware for Talos node at $NODE_IP..." >&2
+
+# Test connectivity
+echo "Testing connectivity to node..." >&2
+
+# Try insecure first (maintenance mode)
+if talosctl -n "$NODE_IP" get links --insecure >/dev/null 2>&1; then
+    TALOS_MODE="insecure"
+    echo "✅ Node is accessible (maintenance mode)" >&2
+# Try with configured credentials (regular mode)
+elif talosctl -n "$NODE_IP" get links >/dev/null 2>&1; then
+    TALOS_MODE="secure" 
+    echo "✅ Node is accessible (configured mode)" >&2
+else
+    echo "Error: Cannot connect to Talos node at $NODE_IP" >&2
+    echo "Make sure the node is running Talos and accessible." >&2
+    exit 1
+fi
+
+# Discover network interfaces
+echo "Discovering network interfaces..." >&2
+
+# First, try to find the interface that's actually carrying traffic (has the default route)
+if [ "$TALOS_MODE" = "insecure" ]; then
+    CONNECTED_INTERFACE=$(talosctl -n "$NODE_IP" get routes --insecure -o json 2>/dev/null | \
+        jq -s -r '.[] | select(.spec.destination == "0.0.0.0/0" and .spec.gateway != null) | .spec.outLinkName' | \
+        head -1)
+else
+    CONNECTED_INTERFACE=$(talosctl -n "$NODE_IP" get routes -o json 2>/dev/null | \
+        jq -s -r '.[] | select(.spec.destination == "0.0.0.0/0" and .spec.gateway != null) | .spec.outLinkName' | \
+        head -1)
+fi
+
+if [ -n "$CONNECTED_INTERFACE" ]; then
+    ACTIVE_INTERFACE="$CONNECTED_INTERFACE"
+    echo "✅ Discovered connected interface (with default route): $ACTIVE_INTERFACE" >&2
+else
+    # Fallback: find physical ethernet interface (prefer eth*, en*, avoid virtual interfaces)
+    echo "No default route found, checking for physical ethernet interfaces..." >&2
+    if [ "$TALOS_MODE" = "insecure" ]; then
+        ACTIVE_INTERFACE=$(talosctl -n "$NODE_IP" get links --insecure -o json 2>/dev/null | \
+            jq -s -r '.[] | select(.spec.operationalState == "up" and .spec.type == "ether" and .metadata.id != "lo" and (.metadata.id | test("^(eth|en|eno|ens|enp)")) and (.metadata.id | test("(cni|flannel|docker|br-|veth)") | not)) | .metadata.id' | \
+            head -1)
+    else
+        ACTIVE_INTERFACE=$(talosctl -n "$NODE_IP" get links -o json 2>/dev/null | \
+            jq -s -r '.[] | select(.spec.operationalState == "up" and .spec.type == "ether" and .metadata.id != "lo" and (.metadata.id | test("^(eth|en|eno|ens|enp)")) and (.metadata.id | test("(cni|flannel|docker|br-|veth)") | not)) | .metadata.id' | \
+            head -1)
+    fi
+    
+    # If no physical interface found, fall back to any ethernet interface
+    if [ -z "$ACTIVE_INTERFACE" ]; then
+        echo "No physical ethernet interface found, checking any ethernet interface..." >&2
+        if [ "$TALOS_MODE" = "insecure" ]; then
+            ACTIVE_INTERFACE=$(talosctl -n "$NODE_IP" get links --insecure -o json 2>/dev/null | \
+                jq -s -r '.[] | select(.spec.operationalState == "up" and .spec.type == "ether" and .metadata.id != "lo") | .metadata.id' | \
+                head -1)
+        else
+            ACTIVE_INTERFACE=$(talosctl -n "$NODE_IP" get links -o json 2>/dev/null | \
+                jq -s -r '.[] | select(.spec.operationalState == "up" and .spec.type == "ether" and .metadata.id != "lo") | .metadata.id' | \
+                head -1)
+        fi
+    fi
+    
+    if [ -z "$ACTIVE_INTERFACE" ]; then
+        echo "Error: No active ethernet interface found" >&2
+        echo "Available interfaces:" >&2
+        if [ "$TALOS_MODE" = "insecure" ]; then
+            talosctl -n "$NODE_IP" get links --insecure >&2
+        else
+            talosctl -n "$NODE_IP" get links >&2
+        fi
+        echo "" >&2
+        echo "Available routes:" >&2
+        if [ "$TALOS_MODE" = "insecure" ]; then
+            talosctl -n "$NODE_IP" get routes --insecure >&2
+        else
+            talosctl -n "$NODE_IP" get routes >&2
+        fi
+        exit 1
+    fi
+    
+    echo "✅ Discovered active interface: $ACTIVE_INTERFACE" >&2
+fi
+
+# Discover available disks
+echo "Discovering available disks..." >&2
+if [ "$TALOS_MODE" = "insecure" ]; then
+    AVAILABLE_DISKS_RAW=$(talosctl -n "$NODE_IP" get disks --insecure -o json 2>/dev/null | \
+        jq -s -r '.[] | select(.spec.size > 10000000000) | .metadata.id')
+else
+    AVAILABLE_DISKS_RAW=$(talosctl -n "$NODE_IP" get disks -o json 2>/dev/null | \
+        jq -s -r '.[] | select(.spec.size > 10000000000) | .metadata.id')
+fi
+
+if [ -z "$AVAILABLE_DISKS_RAW" ]; then
+    echo "Error: No suitable disks found (must be >10GB)" >&2
+    echo "Available disks:" >&2
+    if [ "$TALOS_MODE" = "insecure" ]; then
+        talosctl -n "$NODE_IP" get disks --insecure >&2
+    else
+        talosctl -n "$NODE_IP" get disks >&2
+    fi
+    exit 1
+fi
+
+# Convert to JSON array
+AVAILABLE_DISKS=$(echo "$AVAILABLE_DISKS_RAW" | jq -R -s 'split("\n") | map(select(length > 0)) | map("/dev/" + .)')
+
+# Select the first disk as default (largest first)
+SELECTED_DISK=$(echo "$AVAILABLE_DISKS" | jq -r '.[0]')
+
+echo "✅ Discovered $(echo "$AVAILABLE_DISKS" | jq -r 'length') suitable disks" >&2
+echo "✅ Selected disk: $SELECTED_DISK" >&2
+
+# Output JSON to stdout
+jq -n \
+  --arg interface "$ACTIVE_INTERFACE" \
+  --argjson disks "$AVAILABLE_DISKS" \
+  --arg selected_disk "$SELECTED_DISK" \
+  '{
+    interface: $interface,
+    disks: $disks,
+    selected_disk: $selected_disk
+  }'
