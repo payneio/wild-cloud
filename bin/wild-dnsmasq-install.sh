@@ -94,7 +94,7 @@ wget http://boot.ipxe.org/arm64-efi/ipxe.efi -O ${FTPD_DIR}/ipxe-arm64.efi
 
 cp "${DNSMASQ_SETUP_DIR}/nginx.conf" "${BUNDLE_DIR}/nginx.conf"
 cp "${DNSMASQ_SETUP_DIR}/dnsmasq.conf" "${BUNDLE_DIR}/dnsmasq.conf"
-cp "${DNSMASQ_SETUP_DIR}/bin/setup.sh" "${BUNDLE_DIR}/setup.sh"
+cp "${DNSMASQ_SETUP_DIR}/setup.sh" "${BUNDLE_DIR}/setup.sh"
 
 # Copy setup bundle to DNSMasq server.
 # This is the server that will run DNSMasq and serve PXE boot files.
