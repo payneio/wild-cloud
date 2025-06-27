@@ -14,7 +14,5 @@
 
 # Format: "version": "schematic-id"
 talos-schemas:
-  "v1.6.1": "e6230b0db3fd355a0bb77a9de74af41a9f3edd168f913cbd94807629a2116d07"
-  # Add more versions here as needed
-  # "v1.6.2": "example-schematic-id-here"
-  # "v1.7.0": "example-schematic-id-here"
+  "v1.10.3": "e6230b0db3fd355a0bb77a9de74af41a9f3edd168f913cbd94807629a2116d07"
+  "v1.10.4": "434a0300db532066f1098e05ac068159371d00f0aba0a3103a0e826e83825c82"
