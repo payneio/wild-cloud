@@ -13,10 +13,10 @@ machine:
             gateway: {{ .cloud.router.ip }}
         vip:
           ip: {{ .cluster.nodes.control.vip }}
-cluster:
-  discovery:
-    enabled: true
-    registries:
-      service:
-        disabled: true
-  # allowSchedulingOnControlPlanes: true
+# cluster:
+#   discovery:
+#     enabled: true
+#     registries:
+#       service:
+#         disabled: true
+#   allowSchedulingOnControlPlanes: true
