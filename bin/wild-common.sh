@@ -157,10 +157,6 @@ init_wild_env() {
         if found_home="$(find_wc_home)"; then
             WC_HOME="$found_home"
             export WC_HOME
-        else
-            # If no .wildcloud directory found, default to current directory
-            WC_HOME="$(pwd)"
-            export WC_HOME
         fi
     fi
 }
