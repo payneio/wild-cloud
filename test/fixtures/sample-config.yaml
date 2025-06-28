@@ -1,0 +1,72 @@
+wildcloud:
+  root: /test/path/wild-cloud
+operator:
+  email: test@example.com
+cloud:
+  domain: test.example.com
+  internalDomain: internal.test.example.com
+  dockerRegistryHost: docker-registry.internal.test.example.com
+  tz: America/New_York
+  router:
+    dynamicDns: test.ddns.com
+    ip: 192.168.100.1
+  nfs:
+    host: test-nfs
+    mediaPath: /data/media
+    storageCapacity: 100Gi
+  dns:
+    ip: 192.168.100.50
+    externalResolver: 8.8.8.8
+  dhcpRange: 192.168.100.100,192.168.100.200
+  dnsmasq:
+    interface: eth0
+    username: testuser
+cluster:
+  name: test-cluster
+  ipAddressPool: 192.168.100.240-192.168.100.249
+  loadBalancerIp: 192.168.100.240
+  kubernetes:
+    config: /home/testuser/.kube/config
+    context: default
+  dashboard:
+    adminUsername: admin
+  certManager:
+    namespace: cert-manager
+    cloudflare:
+      domain: example.com
+      ownerId: test-cluster-owner
+  externalDns:
+    ownerId: test-cluster-owner
+  dockerRegistry:
+    storage: 10Gi
+  nodes:
+    talos:
+      version: v1.10.4
+      schematicId: test123456789abcdef
+    control:
+      vip: 192.168.100.200
+    active:
+      192.168.100.201:
+        maintenanceIp: 192.168.100.131
+        interface: eth0
+        disk: /dev/sda
+        control: "true"
+      192.168.100.202:
+        interface: eth0
+        disk: /dev/nvme0n1
+        control: "true"
+      192.168.100.210:
+        interface: eth0
+        disk: /dev/sda
+        control: "false"
+apps:
+  postgres:
+    database: postgres
+    user: postgres
+    storage: 10Gi
+    image: pgvector/pgvector:pg15
+    timezone: America/New_York
+  redis:
+    image: redis:alpine
+    timezone: UTC
+    port: 6379

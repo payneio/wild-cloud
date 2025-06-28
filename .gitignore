@@ -10,3 +10,6 @@ CLAUDE.md
 # Wild Cloud
 **/config/secrets.env
 **/config/config.env
+
+# Test directory - ignore temporary files
+test/tmp
