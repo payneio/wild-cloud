@@ -19,4 +19,4 @@ cluster:
     registries:
       service:
         disabled: true
-  allowSchedulingOnControlPlanes: true
+  # allowSchedulingOnControlPlanes: true
