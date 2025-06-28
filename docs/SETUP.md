@@ -14,9 +14,10 @@ Initialize a personal wild-cloud in any empty directory, for example:
 cd ~
 mkdir ~/my-wild-cloud
 cd my-wild-cloud
-wild-init
 ```
 
-Now, continue setup by following the instructions inside the new `README.md` in your personal wild-cloud directory:
+Run:
 
-~/my-wild-cloud/README.md
+```bash
+wild-setup
+```

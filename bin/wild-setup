@@ -110,7 +110,7 @@ print_info "Running complete Wild-Cloud setup using modular components"
 echo ""
 
 # =============================================================================
-# COMPONENT 1: SCAFFOLD SETUP
+# SCAFFOLD SETUP
 # =============================================================================
 
 if [ "${SKIP_SCAFFOLD}" = false ]; then
@@ -129,7 +129,7 @@ else
 fi
 
 # =============================================================================
-# COMPONENT 2: CLUSTER SETUP
+# CLUSTER SETUP
 # =============================================================================
 
 if [ "${SKIP_CLUSTER}" = false ]; then
@@ -148,7 +148,7 @@ else
 fi
 
 # =============================================================================
-# COMPONENT 3: SERVICES SETUP
+# SERVICES SETUP
 # =============================================================================
 
 if [ "${SKIP_SERVICES}" = false ]; then
