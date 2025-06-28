@@ -1,16 +1,33 @@
 #!/bin/bash
 
+# Parse command line arguments
+INSTALL_MODE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install)
+            INSTALL_MODE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--install]"
+            echo "  --install    Copy bundle to DNSMasq server and run installation"
+            exit 1
+            ;;
+    esac
+done
+
 # Check if WC_HOME is set
 if [ -z "${WC_HOME:-}" ]; then
     echo "Error: WC_HOME environment variable not set. Run \`source ./env.sh\`."
     exit 1
 fi
 
-WILDCLOUD_ROOT=$(wild-config wildcloud.root) || exit 1
+WC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ---
 
-SOURCE_DIR="${WILDCLOUD_ROOT}/setup/dnsmasq"
+SOURCE_DIR="${WC_ROOT}/setup/dnsmasq"
 DNSMASQ_SETUP_DIR="${WC_HOME}/setup/dnsmasq"
 BUNDLE_DIR="${DNSMASQ_SETUP_DIR}/setup-bundle"
 mkdir -p "${BUNDLE_DIR}"
@@ -110,19 +127,26 @@ cp "${DNSMASQ_SETUP_DIR}/nginx.conf" "${BUNDLE_DIR}/nginx.conf"
 cp "${DNSMASQ_SETUP_DIR}/dnsmasq.conf" "${BUNDLE_DIR}/dnsmasq.conf"
 cp "${DNSMASQ_SETUP_DIR}/setup.sh" "${BUNDLE_DIR}/setup.sh"
 
-# Copy setup bundle to DNSMasq server.
-# This is the server that will run DNSMasq and serve PXE boot files.
+# Copy setup bundle to DNSMasq server and install (only if --install flag is provided)
+if [ "$INSTALL_MODE" = true ]; then
+    echo "Installing DNSMasq setup on remote server..."
+    
+    SERVER_HOST=$(wild-config cloud.dns.ip) || exit 1
+    SETUP_DIR="${WC_HOME}/setup/dnsmasq/setup-bundle"
+    DESTINATION_DIR="~/dnsmasq-setup"
 
-SERVER_HOST=$(wild-config cloud.dns.ip) || exit 1
-SETUP_DIR="${WC_HOME}/setup/dnsmasq/setup-bundle"
-DESTINATION_DIR="~/dnsmasq-setup"
+    echo "Copying DNSMasq setup files to ${SERVER_HOST}:${DESTINATION_DIR}..."
+    scp -r ${SETUP_DIR}/* root@${SERVER_HOST}:${DESTINATION_DIR}
 
-echo "Copying DNSMasq setup files to ${SERVER_HOST}:${DESTINATION_DIR}..."
-scp -r ${SETUP_DIR}/* root@${SERVER_HOST}:${DESTINATION_DIR}
-
-# Run setup script on the DNSMasq server.
-echo "Running setup script on ${SERVER_HOST}..."
-ssh root@${SERVER_HOST} "cd ${DESTINATION_DIR} && ./setup.sh" || {
-    echo "Error: Failed to run setup script on ${SERVER_HOST}"
-    exit 1
-}
+    # Run setup script on the DNSMasq server.
+    echo "Running setup script on ${SERVER_HOST}..."
+    ssh root@${SERVER_HOST} "cd ${DESTINATION_DIR} && ./setup.sh" || {
+        echo "Error: Failed to run setup script on ${SERVER_HOST}"
+        exit 1
+    }
+    
+    echo "DNSMasq installation completed successfully on ${SERVER_HOST}"
+else
+    echo "DNSMasq setup bundle created successfully at ${BUNDLE_DIR}"
+    echo "Run with --install flag to copy bundle to server and install"
+fi
