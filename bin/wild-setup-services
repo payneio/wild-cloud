@@ -72,10 +72,10 @@ print_info "Installing Kubernetes cluster services (Phase 4)"
 echo ""
 
 # =============================================================================
-# PHASE 4: Cluster Services Installation
+# Cluster Services Installation
 # =============================================================================
 
-print_header "Phase 4: Cluster Services Installation"
+print_header "Cluster Services Installation"
 
 # Configure DNS and certificates
 if [ -z "$(get_current_config "cluster.certManager.cloudflare.domain")" ]; then
@@ -115,7 +115,55 @@ if [ -z "$(get_current_config "cluster.certManager.cloudflare.domain")" ]; then
     echo ""
 fi
 
-# Configure storage settings
+# Configure core network settings
+print_header "Network Configuration"
+
+# Get basic domain configuration (should already be set from earlier setup)
+domain=$(get_current_config "cloud.domain")
+internal_domain=$(get_current_config "cloud.internalDomain")
+operator_email=$(get_current_config "operator.email")
+
+if [ -z "$domain" ] || [ -z "$internal_domain" ] || [ -z "$operator_email" ]; then
+    print_error "Basic domain and operator configuration missing"
+    print_info "Please run 'wild-setup-scaffold' first to configure basic settings"
+    exit 1
+fi
+
+# Load balancer IP configuration
+current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
+if [ -z "$current_lb_ip" ] || [ "$current_lb_ip" = "null" ]; then
+    lb_ip=$(prompt_with_default "Load balancer IP address" "" "${current_lb_ip}")
+    wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
+fi
+
+# IP address pool for MetalLB
+current_ip_pool=$(get_current_config "cluster.ipAddressPool")
+if [ -z "$current_ip_pool" ] || [ "$current_ip_pool" = "null" ]; then
+    current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
+    ip_pool=$(prompt_with_default "IP address pool for load balancer (range)" "${current_lb_ip}-${current_lb_ip}" "${current_ip_pool}")
+    wild-config-set "cluster.ipAddressPool" "${ip_pool}"
+fi
+
+# External DNS resolver for CoreDNS
+current_dns_resolver=$(get_current_config "cloud.dns.externalResolver")
+if [ -z "$current_dns_resolver" ] || [ "$current_dns_resolver" = "null" ]; then
+    dns_resolver=$(prompt_with_default "External DNS resolver" "1.1.1.1" "${current_dns_resolver}")
+    wild-config-set "cloud.dns.externalResolver" "${dns_resolver}"
+fi
+
+# ExternalDNS owner ID (unique identifier for DNS records)
+current_owner_id=$(get_current_config "cluster.externalDns.ownerId")
+if [ -z "$current_owner_id" ] || [ "$current_owner_id" = "null" ]; then
+    cluster_name=$(get_current_config "cluster.name")
+    default_owner_id="${cluster_name:-wild-cloud}-$(date +%s)"
+    owner_id=$(prompt_with_default "ExternalDNS owner ID (unique identifier)" "${default_owner_id}" "${current_owner_id}")
+    wild-config-set "cluster.externalDns.ownerId" "${owner_id}"
+fi
+
+print_success "Network configuration completed"
+echo ""
+
+# Configure storage settings  
 print_header "Storage Configuration"
 
 dns_ip=$(get_current_config "cloud.dns.ip")
@@ -181,9 +229,9 @@ else
 fi
 
 if [ "${SKIP_INSTALL}" = false ] && [ "${SERVICES_INSTALLED:-false}" = true ]; then
-    print_success "Phase 4 completed: Cluster services installation"
+    print_success "Completed: Cluster services installation"
 else
-    print_success "Phase 4 completed: Cluster services configuration generated"
+    print_success "Completed: Cluster services configuration generated"
 fi
 echo ""
 

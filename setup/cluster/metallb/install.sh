@@ -11,9 +11,12 @@ METALLB_DIR="${CLUSTER_SETUP_DIR}/metallb"
 
 echo "Setting up MetalLB..."
 
-# Process templates with gomplate
-echo "Processing MetalLB templates..."
-wild-compile-template-dir --clean ${METALLB_DIR}/kustomize.template ${METALLB_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled MetalLB templates..."
+if [ ! -d "${METALLB_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 echo "Deploying MetalLB..."
 kubectl apply -k ${METALLB_DIR}/kustomize/installation

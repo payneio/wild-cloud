@@ -102,34 +102,71 @@ elif [ "$FORCE" = true ] && [ -d "$DEST_DIR" ]; then
     rm -rf "$DEST_DIR"
 fi
 
-# Copy cluster setup files
-print_info "Copying cluster setup files from repository..."
+# Copy and compile cluster setup files
+print_info "Copying and compiling cluster setup files from repository..."
 mkdir -p "${WC_HOME}/setup"
-cp -r "$SOURCE_DIR" "$DEST_DIR"
 
 # Copy README if it doesn't exist
 if [ ! -f "${WC_HOME}/setup/README.md" ]; then
     cp "${WC_ROOT}/setup/README.md" "${WC_HOME}/setup/README.md"
 fi
 
-print_success "Cluster setup files copied"
+# Create destination directory
+mkdir -p "$DEST_DIR"
 
-# Compile templates
-print_info "Compiling service templates with current configuration..."
+# First, copy root-level files from setup/cluster/ (install-all.sh, get_helm.sh, etc.)
+print_info "Copying root-level cluster setup files..."
+for item in "$SOURCE_DIR"/*; do
+    if [ -f "$item" ]; then
+        item_name=$(basename "$item")
+        print_info "  Copying: ${item_name}"
+        cp "$item" "$DEST_DIR/$item_name"
+    fi
+done
 
-COMPILED_COUNT=0
-find "$DEST_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.conf" -o -name "*.json" \) | while read -r file; do
-    # Skip files that don't contain template variables
-    if ! grep -q "{{" "$file" 2>/dev/null; then
+# Then, process each service directory in the source
+print_info "Processing service directories..."
+for service_dir in "$SOURCE_DIR"/*; do
+    if [ ! -d "$service_dir" ]; then
         continue
     fi
     
-    print_info "Compiling: ${file#${WC_HOME}/}"
-    wild-compile-template < "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
-    COMPILED_COUNT=$((COMPILED_COUNT + 1))
+    service_name=$(basename "$service_dir")
+    dest_service_dir="$DEST_DIR/$service_name"
+    
+    print_info "Processing service: $service_name"
+    
+    # Create destination service directory
+    mkdir -p "$dest_service_dir"
+    
+    # Copy all files except kustomize.template directory
+    for item in "$service_dir"/*; do
+        item_name=$(basename "$item")
+        
+        if [ "$item_name" = "kustomize.template" ]; then
+            # Compile kustomize.template to kustomize directory
+            if [ -d "$item" ]; then
+                print_info "  Compiling kustomize templates for $service_name"
+                wild-compile-template-dir --clean "$item" "$dest_service_dir/kustomize"
+            fi
+        else
+            # Copy other files as-is (install.sh, README.md, etc.)
+            if [ -f "$item" ]; then
+                # Compile individual template files
+                if grep -q "{{" "$item" 2>/dev/null; then
+                    print_info "  Compiling: ${item_name}"
+                    wild-compile-template < "$item" > "$dest_service_dir/$item_name"
+                else
+                    cp "$item" "$dest_service_dir/$item_name"
+                fi
+            elif [ -d "$item" ]; then
+                cp -r "$item" "$dest_service_dir/"
+            fi
+        fi
+    done
 done
 
-print_success "Template compilation completed"
+print_success "Cluster setup files copied and compiled"
 
 # Verify required configuration
 print_info "Verifying service configuration..."

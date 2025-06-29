@@ -11,9 +11,12 @@ UTILS_DIR="${CLUSTER_SETUP_DIR}/utils"
 
 echo "Setting up cluster utilities..."
 
-# Process templates with wild-compile-template-dir
-echo "Processing utils templates..."
-wild-compile-template-dir --clean ${UTILS_DIR}/kustomize.template ${UTILS_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled utils templates..."
+if [ ! -d "${UTILS_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 echo "Applying utility manifests..."
 kubectl apply -f ${UTILS_DIR}/kustomize/

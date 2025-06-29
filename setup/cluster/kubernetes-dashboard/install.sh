@@ -11,9 +11,12 @@ KUBERNETES_DASHBOARD_DIR="${CLUSTER_SETUP_DIR}/kubernetes-dashboard"
 
 echo "Setting up Kubernetes Dashboard..."
 
-# Process templates with wild-compile-template-dir
-echo "Processing Dashboard templates..."
-wild-compile-template-dir --clean ${KUBERNETES_DASHBOARD_DIR}/kustomize.template ${KUBERNETES_DASHBOARD_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled Dashboard templates..."
+if [ ! -d "${KUBERNETES_DASHBOARD_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 NAMESPACE="kubernetes-dashboard"
 

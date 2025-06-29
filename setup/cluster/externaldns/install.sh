@@ -9,9 +9,12 @@ fi
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 EXTERNALDNS_DIR="${CLUSTER_SETUP_DIR}/externaldns"
 
-# Process templates with wild-compile-template-dir
-echo "Processing ExternalDNS templates..."
-wild-compile-template-dir --clean ${EXTERNALDNS_DIR}/kustomize.template ${EXTERNALDNS_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled ExternalDNS templates..."
+if [ ! -d "${EXTERNALDNS_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 echo "Setting up ExternalDNS..."
 

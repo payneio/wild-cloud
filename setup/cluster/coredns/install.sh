@@ -11,17 +11,16 @@ COREDNS_DIR="${CLUSTER_SETUP_DIR}/coredns"
 
 echo "Setting up CoreDNS for k3s..."
 
-# Process templates with wild-compile-template-dir
-echo "Processing CoreDNS templates..."
-wild-compile-template-dir --clean ${COREDNS_DIR}/kustomize.template ${COREDNS_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled CoreDNS templates..."
+if [ ! -d "${COREDNS_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 # Apply the k3s-compatible custom DNS override (k3s will preserve this)
 echo "Applying CoreDNS custom override configuration..."
 kubectl apply -f "${COREDNS_DIR}/kustomize/coredns-custom-config.yaml"
-
-# Apply the LoadBalancer service for external access to CoreDNS
-echo "Applying CoreDNS service configuration..."
-kubectl apply -f "${COREDNS_DIR}/kustomize/coredns-lb-service.yaml"
 
 # Restart CoreDNS pods to apply the changes
 echo "Restarting CoreDNS pods to apply changes..."

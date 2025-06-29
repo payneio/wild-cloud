@@ -72,17 +72,12 @@ if [ -z "$NODE_IP" ]; then
     exit 1
 fi
 
-# Check if we're in a wild-cloud directory
-if [ ! -d ".wildcloud" ]; then
-    print_error "You must run this script from a wild-cloud directory"
-    print_info "Run 'wild-setup' or 'wild-init' first to initialize a wild-cloud project"
-    exit 1
-fi
+check_wild_directory
 
 # Check required configuration
 if [ -z "$(get_current_config "cluster.name")" ]; then
     print_error "Basic cluster configuration is missing"
-    print_info "Run 'wild-setup' or 'wild-init' first to configure your cluster"
+    print_info "Run 'wild-setup' to configure your cluster"
     exit 1
 fi
 

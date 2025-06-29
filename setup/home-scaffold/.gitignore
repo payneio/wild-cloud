@@ -1,6 +1,5 @@
+.wildcloud
 secrets.yaml
-.wildcloud/cache
 .bots/*/sessions
 backup/
 .working
-.claude

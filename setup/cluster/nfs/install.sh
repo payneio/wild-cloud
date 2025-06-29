@@ -12,9 +12,12 @@ NFS_DIR="${CLUSTER_SETUP_DIR}/nfs"
 
 echo "Registering NFS server with Kubernetes cluster..."
 
-# Process templates with wild-compile-template-dir
-echo "Processing NFS templates..."
-wild-compile-template-dir --clean ${NFS_DIR}/kustomize.template ${NFS_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled NFS templates..."
+if [ ! -d "${NFS_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 # Get NFS configuration from config.yaml
 NFS_HOST=$(wild-config cloud.nfs.host) || exit 1

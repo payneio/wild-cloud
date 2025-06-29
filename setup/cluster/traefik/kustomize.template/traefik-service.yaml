@@ -14,7 +14,7 @@ metadata:
     app.kubernetes.io/name: traefik
 spec:
   type: LoadBalancer
-  loadBalancerIP: { { .cluster.loadBalancerIP } }
+  loadBalancerIP: {{ .cluster.loadBalancerIp }}
   selector:
     app.kubernetes.io/instance: traefik-kube-system
     app.kubernetes.io/name: traefik

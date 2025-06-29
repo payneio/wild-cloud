@@ -9,9 +9,12 @@ fi
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 CERT_MANAGER_DIR="${CLUSTER_SETUP_DIR}/cert-manager"
 
-# Process templates with wild-compile-template-dir
-echo "Processing cert-manager templates..."
-wild-compile-template-dir --clean ${CERT_MANAGER_DIR}/kustomize.template ${CERT_MANAGER_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled cert-manager templates..."
+if [ ! -d "${CERT_MANAGER_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 echo "Setting up cert-manager..."
 

@@ -11,9 +11,12 @@ DOCKER_REGISTRY_DIR="${CLUSTER_SETUP_DIR}/docker-registry"
 
 echo "Setting up Docker Registry..."
 
-# Process templates with wild-compile-template-dir
-echo "Processing Docker Registry templates..."
-wild-compile-template-dir --clean ${DOCKER_REGISTRY_DIR}/kustomize.template ${DOCKER_REGISTRY_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled Docker Registry templates..."
+if [ ! -d "${DOCKER_REGISTRY_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 # Apply the docker registry manifests using kustomize
 kubectl apply -k "${DOCKER_REGISTRY_DIR}/kustomize"

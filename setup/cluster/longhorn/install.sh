@@ -11,9 +11,12 @@ LONGHORN_DIR="${CLUSTER_SETUP_DIR}/longhorn"
 
 echo "Setting up Longhorn..."
 
-# Process templates with wild-compile-template-dir
-echo "Processing Longhorn templates..."
-wild-compile-template-dir --clean ${LONGHORN_DIR}/kustomize.template ${LONGHORN_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled Longhorn templates..."
+if [ ! -d "${LONGHORN_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 # Apply Longhorn with kustomize to apply our customizations
 kubectl apply -k ${LONGHORN_DIR}/kustomize/

@@ -24,9 +24,12 @@ kubectl wait --for condition=established crd/gatewayclasses.gateway.networking.k
 kubectl wait --for condition=established crd/ingressroutes.traefik.io --timeout=60s
 kubectl wait --for condition=established crd/middlewares.traefik.io --timeout=60s
 
-# Process templates with wild-compile-template-dir
-echo "Processing Traefik templates..."
-wild-compile-template-dir --clean ${TRAEFIK_DIR}/kustomize.template ${TRAEFIK_DIR}/kustomize
+# Templates should already be compiled by wild-cluster-services-generate
+echo "Using pre-compiled Traefik templates..."
+if [ ! -d "${TRAEFIK_DIR}/kustomize" ]; then
+    echo "Error: Compiled templates not found. Run 'wild-cluster-services-generate' first."
+    exit 1
+fi
 
 # Apply Traefik using kustomize
 echo "Deploying Traefik..."
