@@ -2,6 +2,12 @@
 set -e
 set -o pipefail
 
+# Source common utilities
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
+
+# Initialize Wild-Cloud environment
+init_wild_env
+
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
@@ -10,7 +16,29 @@ fi
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 NFS_DIR="${CLUSTER_SETUP_DIR}/nfs"
 
-echo "Registering NFS server with Kubernetes cluster..."
+print_header "Registering NFS server with Kubernetes cluster"
+
+# Collect required configuration variables
+print_info "Collecting NFS configuration..."
+
+# Get current values
+current_nfs_host=$(get_current_config "cloud.nfs.host")
+current_media_path=$(get_current_config "cloud.nfs.mediaPath")
+current_storage_capacity=$(get_current_config "cloud.nfs.storageCapacity")
+
+# Prompt for NFS host
+nfs_host=$(prompt_with_default "Enter NFS server hostname or IP address" "192.168.1.100" "${current_nfs_host}")
+wild-config-set "cloud.nfs.host" "${nfs_host}"
+
+# Prompt for NFS media path
+media_path=$(prompt_with_default "Enter NFS export path for media storage" "/mnt/storage/media" "${current_media_path}")
+wild-config-set "cloud.nfs.mediaPath" "${media_path}"
+
+# Prompt for storage capacity
+storage_capacity=$(prompt_with_default "Enter NFS storage capacity (e.g., 1Ti, 500Gi)" "1Ti" "${current_storage_capacity}")
+wild-config-set "cloud.nfs.storageCapacity" "${storage_capacity}"
+
+print_success "Configuration collected successfully"
 
 # Templates should already be compiled by wild-cluster-services-generate
 echo "Using pre-compiled NFS templates..."

@@ -29,3 +29,5 @@ if ! command -v gomplate &> /dev/null; then
     echo "Visit: https://docs.gomplate.ca/installing/"
     exit 1
 fi
+
+echo "Wild-cloud root ready."

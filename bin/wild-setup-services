@@ -28,10 +28,9 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help          Show this help message"
             echo ""
             echo "This script will:"
-            echo "  - Configure DNS and SSL certificate settings"
-            echo "  - Configure storage settings (NFS, Docker registry)"
             echo "  - Generate cluster service configurations"
             echo "  - Install core services (MetalLB, Traefik, cert-manager, etc.)"
+            echo "  - Each service will prompt for its required configuration"
             echo ""
             echo "Prerequisites:"
             echo "  - Run 'wild-setup-scaffold' to initialize the cloud"
@@ -77,134 +76,8 @@ echo ""
 
 print_header "Cluster Services Installation"
 
-# Configure DNS and certificates
-if [ -z "$(get_current_config "cluster.certManager.cloudflare.domain")" ]; then
-    print_header "DNS and Certificate Configuration"
-    echo "For automatic SSL certificates and DNS management, we use Cloudflare."
-    echo ""
-
-    base_domain=$(get_current_config "cloud.baseDomain")
-    domain=$(get_current_config "cloud.domain")
-    
-    echo "Is your domain '${base_domain}' registered and managed through Cloudflare? (y/n)"
-    read -r use_cloudflare
-
-    if [[ "${use_cloudflare}" =~ ^[Yy]$ ]]; then
-        wild-config-set "cluster.certManager.cloudflare.domain" "${domain}"
-        
-        current_cf_token=$(get_current_secret "cloudflare.token")
-        if [ -z "${current_cf_token}" ]; then
-            echo ""
-            print_info "You'll need a Cloudflare API token with the following permissions:"
-            echo "  - Zone:Zone:Read"
-            echo "  - Zone:DNS:Edit"
-            echo "  - Include:All zones"
-            echo ""
-            echo "Create one at: https://dash.cloudflare.com/profile/api-tokens"
-            echo ""
-        fi
-        
-        cf_token=$(prompt_with_default "Cloudflare API token" "" "${current_cf_token}")
-        wild-secret-set "cloudflare.token" "${cf_token}"
-    else
-        print_warning "You'll need to configure DNS and SSL certificates manually."
-        print_info "Consider transferring your domain to Cloudflare for easier management."
-    fi
-    
-    print_success "DNS and certificate configuration completed"
-    echo ""
-fi
-
-# Configure core network settings
-print_header "Network Configuration"
-
-# Get basic domain configuration (should already be set from earlier setup)
-domain=$(get_current_config "cloud.domain")
-internal_domain=$(get_current_config "cloud.internalDomain")
-operator_email=$(get_current_config "operator.email")
-
-if [ -z "$domain" ] || [ -z "$internal_domain" ] || [ -z "$operator_email" ]; then
-    print_error "Basic domain and operator configuration missing"
-    print_info "Please run 'wild-setup-scaffold' first to configure basic settings"
-    exit 1
-fi
-
-# Load balancer IP configuration
-current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
-if [ -z "$current_lb_ip" ] || [ "$current_lb_ip" = "null" ]; then
-    lb_ip=$(prompt_with_default "Load balancer IP address" "" "${current_lb_ip}")
-    wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
-fi
-
-# IP address pool for MetalLB
-current_ip_pool=$(get_current_config "cluster.ipAddressPool")
-if [ -z "$current_ip_pool" ] || [ "$current_ip_pool" = "null" ]; then
-    current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
-    ip_pool=$(prompt_with_default "IP address pool for load balancer (range)" "${current_lb_ip}-${current_lb_ip}" "${current_ip_pool}")
-    wild-config-set "cluster.ipAddressPool" "${ip_pool}"
-fi
-
-# External DNS resolver for CoreDNS
-current_dns_resolver=$(get_current_config "cloud.dns.externalResolver")
-if [ -z "$current_dns_resolver" ] || [ "$current_dns_resolver" = "null" ]; then
-    dns_resolver=$(prompt_with_default "External DNS resolver" "1.1.1.1" "${current_dns_resolver}")
-    wild-config-set "cloud.dns.externalResolver" "${dns_resolver}"
-fi
-
-# ExternalDNS owner ID (unique identifier for DNS records)
-current_owner_id=$(get_current_config "cluster.externalDns.ownerId")
-if [ -z "$current_owner_id" ] || [ "$current_owner_id" = "null" ]; then
-    cluster_name=$(get_current_config "cluster.name")
-    default_owner_id="${cluster_name:-wild-cloud}-$(date +%s)"
-    owner_id=$(prompt_with_default "ExternalDNS owner ID (unique identifier)" "${default_owner_id}" "${current_owner_id}")
-    wild-config-set "cluster.externalDns.ownerId" "${owner_id}"
-fi
-
-print_success "Network configuration completed"
-echo ""
-
-# Configure storage settings  
-print_header "Storage Configuration"
-
-dns_ip=$(get_current_config "cloud.dns.ip")
-internal_domain=$(get_current_config "cloud.internalDomain")
-
-# NFS settings
-current_nfs_host=$(get_current_config "cloud.nfs.host")
-if [ -z "$current_nfs_host" ] || [ "$current_nfs_host" = "null" ]; then
-    nfs_host=$(prompt_with_default "NFS server host" "${dns_ip}" "${current_nfs_host}")
-    wild-config-set "cloud.nfs.host" "${nfs_host}"
-fi
-
-current_media_path=$(get_current_config "cloud.nfs.mediaPath")
-if [ -z "$current_media_path" ] || [ "$current_media_path" = "null" ]; then
-    media_path=$(prompt_with_default "NFS media path" "/mnt/storage/media" "${current_media_path}")
-    wild-config-set "cloud.nfs.mediaPath" "${media_path}"
-fi
-
-current_storage_capacity=$(get_current_config "cloud.nfs.storageCapacity")
-if [ -z "$current_storage_capacity" ] || [ "$current_storage_capacity" = "null" ]; then
-    storage_capacity=$(prompt_with_default "Storage capacity for NFS PV" "1Ti" "${current_storage_capacity}")
-    wild-config-set "cloud.nfs.storageCapacity" "${storage_capacity}"
-fi
-
-# Docker Registry settings
-current_registry_host=$(get_current_config "cloud.dockerRegistryHost")
-if [ -z "$current_registry_host" ] || [ "$current_registry_host" = "null" ]; then
-    registry_host=$(prompt_with_default "Docker registry hostname" "registry.${internal_domain}" "${current_registry_host}")
-    wild-config-set "cloud.dockerRegistryHost" "${registry_host}"
-fi
-
-current_registry_storage=$(get_current_config "cluster.dockerRegistry.storage")
-if [ -z "$current_registry_storage" ] || [ "$current_registry_storage" = "null" ]; then
-    registry_storage=$(prompt_with_default "Docker registry storage size" "10Gi" "${current_registry_storage}")
-    wild-config-set "cluster.dockerRegistry.storage" "${registry_storage}"
-fi
-
-print_success "Storage configuration completed"
-echo ""
-
-print_info "This phase prepares and installs core cluster services (MetalLB, Traefik, cert-manager, etc.)"
+print_info "This phase installs core cluster services (MetalLB, Traefik, cert-manager, etc.)"
+print_info "Each service will prompt for any required configuration during installation"
 print_warning "Make sure your cluster is running and kubectl is configured!"
 
 # Generate cluster services setup files

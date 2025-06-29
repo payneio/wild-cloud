@@ -122,7 +122,8 @@ if [ "$FORCE" = true ] && [ -d "${NODE_SETUP_DIR}/generated" ]; then
 fi
 
 cd "${NODE_SETUP_DIR}/generated"
-talosctl gen config "$CLUSTER_NAME" "https://$VIP:6443"
+talosctl gen secrets
+talosctl gen config --with-secrets secrets.yaml "$CLUSTER_NAME" "https://$VIP:6443"
 cd - >/dev/null
 
 # Verify generated files
