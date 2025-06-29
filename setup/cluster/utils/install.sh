@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
+set -o pipefail
 
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 UTILS_DIR="${CLUSTER_SETUP_DIR}/utils"

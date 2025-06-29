@@ -2,16 +2,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 COREDNS_DIR="${CLUSTER_SETUP_DIR}/coredns"
@@ -21,22 +17,10 @@ print_header "Setting up CoreDNS for k3s"
 # Collect required configuration variables
 print_info "Collecting CoreDNS configuration..."
 
-# Get current values
-current_internal_domain=$(get_current_config "cloud.internalDomain")
-current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
-current_external_resolver=$(get_current_config "cloud.dns.externalResolver")
-
-# Prompt for internal domain
-internal_domain=$(prompt_with_default "Enter internal domain name" "local.example.com" "${current_internal_domain}")
-wild-config-set "cloud.internalDomain" "${internal_domain}"
-
-# Prompt for load balancer IP
-lb_ip=$(prompt_with_default "Enter load balancer IP address" "192.168.1.240" "${current_lb_ip}")
-wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
-
-# Prompt for external DNS resolver
-external_resolver=$(prompt_with_default "Enter external DNS resolver" "8.8.8.8" "${current_external_resolver}")
-wild-config-set "cloud.dns.externalResolver" "${external_resolver}"
+# Prompt for configuration using helper functions
+prompt_if_unset_config "cloud.internalDomain" "Enter internal domain name" "local.example.com"
+prompt_if_unset_config "cluster.loadBalancerIp" "Enter load balancer IP address" "192.168.1.240"
+prompt_if_unset_config "cloud.dns.externalResolver" "Enter external DNS resolver" "8.8.8.8"
 
 print_success "Configuration collected successfully"
 

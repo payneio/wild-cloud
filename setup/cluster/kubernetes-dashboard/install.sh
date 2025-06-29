@@ -2,16 +2,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 KUBERNETES_DASHBOARD_DIR="${CLUSTER_SETUP_DIR}/kubernetes-dashboard"
@@ -21,12 +17,8 @@ print_header "Setting up Kubernetes Dashboard"
 # Collect required configuration variables
 print_info "Collecting Kubernetes Dashboard configuration..."
 
-# Get current value
-current_internal_domain=$(get_current_config "cloud.internalDomain")
-
-# Prompt for internal domain
-internal_domain=$(prompt_with_default "Enter internal domain name (for dashboard URL)" "local.example.com" "${current_internal_domain}")
-wild-config-set "cloud.internalDomain" "${internal_domain}"
+# Prompt for configuration using helper functions
+prompt_if_unset_config "cloud.internalDomain" "Enter internal domain name (for dashboard URL)" "local.example.com"
 
 print_success "Configuration collected successfully"
 

@@ -2,16 +2,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 CERT_MANAGER_DIR="${CLUSTER_SETUP_DIR}/cert-manager"
@@ -21,42 +17,15 @@ print_header "Setting up cert-manager"
 # Collect required configuration variables
 print_info "Collecting cert-manager configuration..."
 
-# Get current values
-current_domain=$(get_current_config "cloud.domain")
-current_internal_domain=$(get_current_config "cloud.internalDomain")
-current_email=$(get_current_config "operator.email")
-current_cf_domain=$(get_current_config "cluster.certManager.cloudflare.domain")
-current_cf_token=$(get_current_secret "cloudflare.token")
+# Prompt for configuration using helper functions
+prompt_if_unset_config "cloud.domain" "Enter main domain name" "example.com"
 
-# Prompt for main domain
-domain=$(prompt_with_default "Enter main domain name" "example.com" "${current_domain}")
-wild-config-set "cloud.domain" "${domain}"
-
-# Prompt for internal domain
-internal_domain=$(prompt_with_default "Enter internal domain name" "local.${domain}" "${current_internal_domain}")
-wild-config-set "cloud.internalDomain" "${internal_domain}"
-
-# Prompt for operator email
-email=$(prompt_with_default "Enter operator email address (for Let's Encrypt)" "" "${current_email}")
-wild-config-set "operator.email" "${email}"
-
-# Prompt for Cloudflare domain
-cf_domain=$(prompt_with_default "Enter Cloudflare domain (for DNS challenges)" "${domain}" "${current_cf_domain}")
-wild-config-set "cluster.certManager.cloudflare.domain" "${cf_domain}"
-
-# Prompt for Cloudflare token
-if [ -z "${current_cf_token}" ] || [ "${current_cf_token}" = "null" ]; then
-    cf_token=$(prompt_with_default "Enter Cloudflare API token (for DNS challenges)" "" "")
-else
-    print_info "Cloudflare token already configured"
-    read -p "Update Cloudflare API token? (y/N): " update_token
-    if [[ "${update_token}" =~ ^[Yy]$ ]]; then
-        cf_token=$(prompt_with_default "Enter new Cloudflare API token" "" "")
-    else
-        cf_token="${current_cf_token}"
-    fi
-fi
-wild-secret-set "cloudflare.token" "${cf_token}"
+# Get the domain value to use as default for internal domain
+domain=$(wild-config "cloud.domain")
+prompt_if_unset_config "cloud.internalDomain" "Enter internal domain name" "local.${domain}"
+prompt_if_unset_config "operator.email" "Enter operator email address (for Let's Encrypt)" ""
+prompt_if_unset_config "cluster.certManager.cloudflare.domain" "Enter Cloudflare domain (for DNS challenges)" "${domain}"
+prompt_if_unset_secret "cloudflare.token" "Enter Cloudflare API token (for DNS challenges)" ""
 
 print_success "Configuration collected successfully"
 

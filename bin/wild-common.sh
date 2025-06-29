@@ -20,6 +20,7 @@
 # AVAILABLE FUNCTIONS:
 # - Print functions: print_header, print_info, print_warning, print_success, print_error
 # - Config functions: get_current_config, get_current_secret, prompt_with_default  
+# - Config helpers: prompt_if_unset_config, prompt_if_unset_secret
 # - Validation: check_wild_directory, check_basic_config
 # - Utilities: command_exists, file_readable, dir_writable, generate_random_string
 
@@ -118,6 +119,44 @@ prompt_with_default() {
     fi
     
     echo "${result}"
+}
+
+# Prompt for config value only if it's not already set
+prompt_if_unset_config() {
+    local config_path="$1"
+    local prompt="$2"
+    local default="$3"
+    
+    local current_value
+    current_value=$(get_current_config "${config_path}")
+    
+    if [ -z "${current_value}" ] || [ "${current_value}" = "null" ]; then
+        local new_value
+        new_value=$(prompt_with_default "${prompt}" "${default}" "")
+        wild-config-set "${config_path}" "${new_value}"
+        print_info "Set ${config_path} = ${new_value}"
+    else
+        print_info "Using existing ${config_path} = ${current_value}"
+    fi
+}
+
+# Prompt for secret value only if it's not already set
+prompt_if_unset_secret() {
+    local secret_path="$1"
+    local prompt="$2"
+    local default="$3"
+    
+    local current_value
+    current_value=$(get_current_secret "${secret_path}")
+    
+    if [ -z "${current_value}" ] || [ "${current_value}" = "null" ]; then
+        local new_value
+        new_value=$(prompt_with_default "${prompt}" "${default}" "")
+        wild-secret-set "${secret_path}" "${new_value}"
+        print_info "Set secret ${secret_path}"
+    else
+        print_info "Using existing secret ${secret_path}"
+    fi
 }
 
 # =============================================================================

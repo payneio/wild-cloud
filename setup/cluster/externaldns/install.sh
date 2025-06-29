@@ -2,16 +2,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 EXTERNALDNS_DIR="${CLUSTER_SETUP_DIR}/externaldns"
@@ -21,12 +17,8 @@ print_header "Setting up ExternalDNS"
 # Collect required configuration variables
 print_info "Collecting ExternalDNS configuration..."
 
-# Get current value
-current_owner_id=$(get_current_config "cluster.externalDns.ownerId")
-
-# Prompt for ExternalDNS owner ID
-owner_id=$(prompt_with_default "Enter ExternalDNS owner ID (unique identifier for this cluster)" "wild-cloud-$(hostname -s)" "${current_owner_id}")
-wild-config-set "cluster.externalDns.ownerId" "${owner_id}"
+# Prompt for configuration using helper functions
+prompt_if_unset_config "cluster.externalDns.ownerId" "Enter ExternalDNS owner ID (unique identifier for this cluster)" "wild-cloud-$(hostname -s)"
 
 print_success "Configuration collected successfully"
 

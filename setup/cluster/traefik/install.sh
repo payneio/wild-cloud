@@ -2,16 +2,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 TRAEFIK_DIR="${CLUSTER_SETUP_DIR}/traefik"
@@ -21,12 +17,8 @@ print_header "Setting up Traefik ingress controller"
 # Collect required configuration variables
 print_info "Collecting Traefik configuration..."
 
-# Get current value
-current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
-
-# Prompt for load balancer IP
-lb_ip=$(prompt_with_default "Enter load balancer IP address for Traefik" "192.168.1.240" "${current_lb_ip}")
-wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
+# Prompt for configuration using helper functions
+prompt_if_unset_config "cluster.loadBalancerIp" "Enter load balancer IP address for Traefik" "192.168.1.240"
 
 print_success "Configuration collected successfully"
 

@@ -2,16 +2,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../bin/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 if [ -z "${WC_HOME}" ]; then
     echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
     exit 1
 fi
+
+source "${WC_ROOT}/bin/wild-common.sh"
 
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 DOCKER_REGISTRY_DIR="${CLUSTER_SETUP_DIR}/docker-registry"
@@ -21,17 +17,9 @@ print_header "Setting up Docker Registry"
 # Collect required configuration variables
 print_info "Collecting Docker Registry configuration..."
 
-# Get current values
-current_registry_host=$(get_current_config "cloud.dockerRegistryHost")
-current_storage=$(get_current_config "cluster.dockerRegistry.storage")
-
-# Prompt for Docker Registry host
-registry_host=$(prompt_with_default "Enter Docker Registry hostname" "registry.local.example.com" "${current_registry_host}")
-wild-config-set "cloud.dockerRegistryHost" "${registry_host}"
-
-# Prompt for storage size
-storage=$(prompt_with_default "Enter Docker Registry storage size" "100Gi" "${current_storage}")
-wild-config-set "cluster.dockerRegistry.storage" "${storage}"
+# Prompt for configuration using helper functions
+prompt_if_unset_config "cloud.dockerRegistryHost" "Enter Docker Registry hostname" "registry.local.example.com"
+prompt_if_unset_config "cluster.dockerRegistry.storage" "Enter Docker Registry storage size" "100Gi"
 
 print_success "Configuration collected successfully"
 
