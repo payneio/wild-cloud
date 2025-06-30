@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
 
-# Check if WC_HOME is set (wildcloud environment sourced)
-if [ -z "${WC_HOME}" ]; then
-    echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
     exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
 fi
 
 # Navigate to script directory

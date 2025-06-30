@@ -3,12 +3,6 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wild-common.sh"
-
-# Initialize Wild-Cloud environment
-init_wild_env
-
 # Usage function
 usage() {
     echo "Usage: wild-cluster-config-generate [options]"
@@ -55,18 +49,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check if we're in a wild-cloud directory
-if [ ! -d ".wildcloud" ]; then
-    print_error "You must run this script from a wild-cloud directory"
-    print_info "Run 'wild-setup' or 'wild-init' first to initialize a wild-cloud project"
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
     exit 1
-fi
-
-# Check if talosctl is available
-if ! command -v talosctl >/dev/null 2>&1; then
-    print_error "talosctl not found in PATH"
-    print_info "Please install talosctl to generate cluster configurations"
-    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
 fi
 
 # =============================================================================

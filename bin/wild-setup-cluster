@@ -3,18 +3,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wild-common.sh"
+# Parse arguments
 
-# Initialize Wild-Cloud environment
-init_wild_env
-
-# Phase tracking variables
 SKIP_INSTALLER=false
 SKIP_HARDWARE=false
 SKIP_CONFIGS=false
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --skip-installer)
@@ -62,8 +56,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check if we're in a wild-cloud directory
-check_wild_directory
+# Initialize Wild-Cloud environment
+
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
+    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
+fi
 
 # Check basic configuration
 check_basic_config
@@ -103,25 +104,11 @@ if [ "${SKIP_HARDWARE}" = false ]; then
         GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
         SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
 
-        current_router_ip=$(get_current_config "cloud.router.ip")
-        router_ip=$(prompt_with_default "Router/Gateway IP" "${GATEWAY_IP}" "${current_router_ip}")
-        wild-config-set "cloud.router.ip" "${router_ip}"
-
-        current_dns_ip=$(get_current_config "cloud.dns.ip")
-        dns_ip=$(prompt_with_default "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50" "${current_dns_ip}")
-        wild-config-set "cloud.dns.ip" "${dns_ip}"
-
-        current_dhcp_range=$(get_current_config "cloud.dhcpRange")
-        dhcp_range=$(prompt_with_default "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200" "${current_dhcp_range}")
-        wild-config-set "cloud.dhcpRange" "${dhcp_range}"
-
-        current_interface=$(get_current_config "cloud.dnsmasq.interface")
-        interface=$(prompt_with_default "Network interface for dnsmasq" "eth0" "${current_interface}")
-        wild-config-set "cloud.dnsmasq.interface" "${interface}"
-
-        current_external_resolver=$(get_current_config "cloud.dns.externalResolver")
-        external_resolver=$(prompt_with_default "External DNS resolver" "1.1.1.1" "${current_external_resolver}")
-        wild-config-set "cloud.dns.externalResolver" "${external_resolver}"
+        prompt_if_unset_config "cloud.router.ip" "Router/Gateway IP" "${GATEWAY_IP}"
+        prompt_if_unset_config "cloud.dns.ip" "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50"
+        prompt_if_unset_config "cloud.dhcpRange" "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200"
+        prompt_if_unset_config "cloud.dnsmasq.interface" "Network interface for dnsmasq" "eth0"
+        prompt_if_unset_config "cloud.dns.externalResolver" "External DNS resolver" "1.1.1.1"
         
         print_success "Network configuration completed"
         echo ""
@@ -134,24 +121,14 @@ if [ "${SKIP_HARDWARE}" = false ]; then
     SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
 
     # Talos version
-    current_talos_version=$(get_current_config "cluster.nodes.talos.version")
-    if [ -z "$current_talos_version" ] || [ "$current_talos_version" = "null" ]; then
-        talos_version=$(prompt_with_default "Talos version" "v1.10.4" "${current_talos_version}")
-        wild-config-set "cluster.nodes.talos.version" "${talos_version}"
-    else
-        talos_version="$current_talos_version"
-    fi
+    prompt_if_unset_config "cluster.nodes.talos.version" "Talos version" "v1.10.4"
+    talos_version=$(wild-config "cluster.nodes.talos.version")
 
     # MetalLB IP address pool
-    current_ip_pool=$(get_current_config "cluster.ipAddressPool")
-    if [ -z "$current_ip_pool" ] || [ "$current_ip_pool" = "null" ]; then
-        ip_pool=$(prompt_with_default "MetalLB IP address pool" "${SUBNET_PREFIX}.80-${SUBNET_PREFIX}.89" "${current_ip_pool}")
-        wild-config-set "cluster.ipAddressPool" "${ip_pool}"
-    else
-        ip_pool="$current_ip_pool"
-    fi
+    prompt_if_unset_config "cluster.ipAddressPool" "MetalLB IP address pool" "${SUBNET_PREFIX}.80-${SUBNET_PREFIX}.89"
+    ip_pool=$(wild-config "cluster.ipAddressPool")
 
-    # Load balancer IP (automatically set to first address in the pool)
+    # Load balancer IP (automatically set to first address in the pool if not set)
     current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
     if [ -z "$current_lb_ip" ] || [ "$current_lb_ip" = "null" ]; then
         lb_ip=$(echo "${ip_pool}" | cut -d'-' -f1)
@@ -183,12 +160,8 @@ if [ "${SKIP_HARDWARE}" = false ]; then
     fi
 
     # External DNS
-    current_owner_id=$(get_current_config "cluster.externalDns.ownerId")
-    if [ -z "$current_owner_id" ] || [ "$current_owner_id" = "null" ]; then
-        cluster_name=$(get_current_config "cluster.name")
-        owner_id=$(prompt_with_default "External DNS owner ID" "external-dns-${cluster_name}" "${current_owner_id}")
-        wild-config-set "cluster.externalDns.ownerId" "${owner_id}"
-    fi
+    cluster_name=$(get_current_config "cluster.name")
+    prompt_if_unset_config "cluster.externalDns.ownerId" "External DNS owner ID" "external-dns-${cluster_name}"
     
     print_success "Cluster configuration completed"
     echo ""
@@ -208,9 +181,8 @@ if [ "${SKIP_HARDWARE}" = false ]; then
         print_info "Configure control plane nodes (you need at least 3 for HA):"
         echo ""
 
-        current_vip=$(get_current_config "cluster.nodes.control.vip")
-        vip=$(prompt_with_default "Control plane virtual IP" "${SUBNET_PREFIX}.90" "${current_vip}")
-        wild-config-set "cluster.nodes.control.vip" "${vip}"
+        prompt_if_unset_config "cluster.nodes.control.vip" "Control plane virtual IP" "${SUBNET_PREFIX}.90"
+        vip=$(wild-config "cluster.nodes.control.vip")
 
         # Automatically configure the first three IPs after VIP for control plane nodes
         vip_last_octet=$(echo "$vip" | cut -d. -f4)

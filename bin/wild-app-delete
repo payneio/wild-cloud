@@ -61,6 +61,15 @@ if [ ! -d "apps/${APP_NAME}" ]; then
     exit 1
 fi
 
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
+    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
+fi
+
 # Confirmation prompt (unless --force or --dry-run)
 if [ "${FORCE}" != true ] && [ "${DRY_RUN:-}" != "--dry-run=client" ]; then
     echo "WARNING: This will delete all resources for app '${APP_NAME}'"

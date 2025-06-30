@@ -3,18 +3,12 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wild-common.sh"
+# Parse arguments
 
-# Initialize Wild-Cloud environment
-init_wild_env
-
-# Phase tracking variables
 SKIP_SCAFFOLD=false
 SKIP_CLUSTER=false
 SKIP_SERVICES=false
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --skip-scaffold)
@@ -71,31 +65,37 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Set up cloud directory (WC_HOME is where user's cloud will be)
-WC_HOME="$(pwd)"
-export WC_HOME
+# Initialize Wild-Cloud environment
 
-print_header "Wild-Cloud Complete Setup"
-print_info "Running complete Wild-Cloud setup using modular components"
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
+    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
+fi
+
+print_header "Wild-Cloud Setup"
+print_info "Running complete Wild-Cloud setup."
 echo ""
 
 # =============================================================================
-# SCAFFOLD SETUP
+# WC_HOME SCAFFOLDING
 # =============================================================================
 
 if [ "${SKIP_SCAFFOLD}" = false ]; then
-    print_header "Component 1: Scaffold Setup"
-    print_info "Running wild-setup-scaffold..."
+    print_header "Cloud Home Setup"
+    print_info "Scaffolding your cloud home..."
     
     if wild-setup-scaffold; then
-        print_success "Component 1 completed: Scaffold setup"
+        print_success "Cloud home setup completed"
     else
-        print_error "Component 1 failed: Scaffold setup"
+        print_error "Cloud home setup failed"
         exit 1
     fi
     echo ""
 else
-    print_info "Skipping Component 1: Scaffold Setup"
+    print_info "Skipping Component 1: Cloud Home Setup"
 fi
 
 # =============================================================================
@@ -103,13 +103,13 @@ fi
 # =============================================================================
 
 if [ "${SKIP_CLUSTER}" = false ]; then
-    print_header "Component 2: Cluster Setup"
+    print_header "Cluster Setup"
     print_info "Running wild-setup-cluster..."
     
     if wild-setup-cluster; then
-        print_success "Component 2 completed: Cluster setup"
+        print_success "Cluster setup completed"
     else
-        print_error "Component 2 failed: Cluster setup"
+        print_error "Cluster setup failed"
         exit 1
     fi
     echo ""
@@ -122,13 +122,13 @@ fi
 # =============================================================================
 
 if [ "${SKIP_SERVICES}" = false ]; then
-    print_header "Component 3: Services Setup"
+    print_header "Services Setup"
     print_info "Running wild-setup-services..."
     
     if wild-setup-services; then
-        print_success "Component 3 completed: Services setup"
+        print_success "Services setup completed"
     else
-        print_error "Component 3 failed: Services setup"
+        print_error "Services setup failed"
         exit 1
     fi
     echo ""
@@ -141,34 +141,6 @@ fi
 # =============================================================================
 
 print_header "Wild-Cloud Complete Setup Finished!"
-
-print_success "All components completed successfully!"
-echo ""
-
-print_info "What was accomplished:"
-if [ "${SKIP_SCAFFOLD}" = false ]; then
-    print_info "✅ Component 1: Scaffold setup (cloud initialization)"
-else
-    print_info "⏸️  Component 1: Scaffold setup (skipped)"
-fi
-
-if [ "${SKIP_CLUSTER}" = false ]; then
-    print_info "✅ Component 2: Cluster setup (Phases 1-3)"
-else
-    print_info "⏸️  Component 2: Cluster setup (skipped)"
-fi
-
-if [ "${SKIP_SERVICES}" = false ]; then
-    print_info "✅ Component 3: Services setup (Phase 4)"
-else
-    print_info "⏸️  Component 3: Services setup (skipped)"
-fi
-
-echo ""
-print_info "Individual components can be run separately:"
-echo "  - wild-setup-scaffold  # Cloud initialization"
-echo "  - wild-setup-cluster   # Cluster infrastructure" 
-echo "  - wild-setup-services  # Cluster services"
 
 echo ""
 if [ "${SKIP_SERVICES}" = false ] && command -v kubectl >/dev/null 2>&1; then

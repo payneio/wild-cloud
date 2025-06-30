@@ -21,12 +21,6 @@ echo
 
 echo "Infrastructure setup complete!"
 echo
-echo "Next steps:"
-echo "1. Install Helm charts for non-infrastructure components"
-INTERNAL_DOMAIN=$(wild-config cloud.internalDomain)
-echo "2. Access the dashboard at: https://dashboard.${INTERNAL_DOMAIN}"
-echo "3. Get the dashboard token with: ./bin/dashboard-token"
-echo
 echo "To verify components, run:"
 echo "- kubectl get pods -n cert-manager"
 echo "- kubectl get pods -n externaldns"

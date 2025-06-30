@@ -3,15 +3,11 @@
 set -e
 set -o pipefail
 
-# Source common utilities
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wild-common.sh"
 
-# Initialize Wild-Cloud environment
-init_wild_env
+# Parse arguments
 
 UPDATE=false
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --update)
@@ -52,18 +48,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Set up cloud directory (WC_HOME is where user's cloud will be)
-WC_HOME="$(pwd)"
-export WC_HOME
+# Initialize Wild-Cloud environment
 
-# Template directory (in WC_ROOT, never written to)
-TEMPLATE_DIR="${WC_ROOT}/setup/home-scaffold"
-echo "Using template directory: ${TEMPLATE_DIR}"
-
-if [ ! -d "${TEMPLATE_DIR}" ]; then
-    echo "Error: Template directory not found at ${TEMPLATE_DIR}"
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
     exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
 fi
+
+TEMPLATE_DIR="${WC_ROOT}/setup/home-scaffold"
 
 # Check if cloud already exists
 if [ -d ".wildcloud" ]; then
@@ -164,27 +159,26 @@ if [ ! -f "${WC_HOME}/config.yaml" ] || [ -z "$(get_current_config "operator.ema
     echo ""
     
     # Basic Information
-    current_email=$(get_current_config "operator.email")
-    email=$(prompt_with_default "Your email address (for Let's Encrypt certificates)" "" "${current_email}")
-    wild-config-set "operator.email" "${email}"
+    prompt_if_unset_config "operator.email" "Your email address (for Let's Encrypt certificates)" ""
 
     # Domain Configuration
-    current_base_domain=$(get_current_config "cloud.baseDomain")
-    base_domain=$(prompt_with_default "Your base domain name (e.g., example.com)" "" "${current_base_domain}")
-    wild-config-set "cloud.baseDomain" "${base_domain}"
+    prompt_if_unset_config "cloud.baseDomain" "Your base domain name (e.g., example.com)" ""
+    
+    # Get base domain to use as default for cloud domain
+    base_domain=$(wild-config "cloud.baseDomain")
+    prompt_if_unset_config "cloud.domain" "Your public cloud domain" "cloud.${base_domain}"
+    
+    # Get cloud domain to use as default for internal domain
+    domain=$(wild-config "cloud.domain")
+    prompt_if_unset_config "cloud.internalDomain" "Your internal cloud domain" "internal.${domain}"
 
-    current_domain=$(get_current_config "cloud.domain")
-    domain=$(prompt_with_default "Your public cloud domain" "cloud.${base_domain}" "${current_domain}")
-    wild-config-set "cloud.domain" "${domain}"
-
-    current_internal_domain=$(get_current_config "cloud.internalDomain")
-    internal_domain=$(prompt_with_default "Your internal cloud domain" "internal.${domain}" "${current_internal_domain}")
-    wild-config-set "cloud.internalDomain" "${internal_domain}"
-
-    # Derive cluster name from domain
-    cluster_name=$(echo "${domain}" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
-    wild-config-set "cluster.name" "${cluster_name}"
-    print_info "Set cluster name to: ${cluster_name}"
+    # Derive cluster name from domain if not already set
+    current_cluster_name=$(get_current_config "cluster.name")
+    if [ -z "$current_cluster_name" ] || [ "$current_cluster_name" = "null" ]; then
+        cluster_name=$(echo "${domain}" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
+        wild-config-set "cluster.name" "${cluster_name}"
+        print_info "Set cluster name to: ${cluster_name}"
+    fi
     
     print_success "Basic configuration completed"
     echo ""

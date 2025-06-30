@@ -183,20 +183,28 @@ find_wc_home() {
 # Initialize common Wild-Cloud environment variables
 # Call this function at the beginning of scripts
 init_wild_env() {
-    # Get WC_ROOT (where this script and templates live)
     if [ -z "${WC_ROOT}" ]; then
-        WC_ROOT="$(cd "$(dirname "${BASH_SOURCE[1]}")/.." && pwd)"
-        export WC_ROOT
+        print "Fail"
+        exit 1
+    else
+    
+    # Check if WC_ROOT is a valid directory
+    if [ ! -d "${WC_ROOT}" ]; then
+        echo "ERROR: WC_ROOT directory does not exist! Did you install the wild-cloud root?"
+        exit 1
     fi
 
-    # Set up cloud directory (WC_HOME is where user's cloud is)
-    # Look for .wildcloud directory in current path or ancestors
+    # Check if WC_ROOT/bin is in path
+    if [[ ":$PATH:" != *":$WC_ROOT/bin:"* ]]; then
+        echo "ERROR: Your wildcloud seed bin path should be in your PATH environment."
+        exit 1
+    fi
+
+    WC_HOME="$(find_wc_home)"
     if [ -z "${WC_HOME}" ]; then
-        local found_home
-        if found_home="$(find_wc_home)"; then
-            WC_HOME="$found_home"
-            export WC_HOME
-        fi
+        echo "ERROR: This command must be run from within a wildcloud home directory."
+        exit 1
+    fi
     fi
 }
 

@@ -54,7 +54,6 @@ fi
 source_dir="$1"
 dest_dir="${2:-${source_dir}_compiled}"
 
-
 # Validate source directory
 if [[ ! -d "$source_dir" ]]; then
     echo "Error: Source directory does not exist: $source_dir" >&2

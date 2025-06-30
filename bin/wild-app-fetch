@@ -45,25 +45,16 @@ if [ -z "${APP_NAME}" ]; then
     exit 1
 fi
 
-if [ ! -d ".wildcloud" ]; then
-    echo "Error: .wildcloud directory not found in current directory"
-    echo "This script must be run from a directory that contains a .wildcloud directory"
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
     exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
 fi
 
-if [ ! -f ".wildcloud/config.yaml" ]; then
-    echo "Error: .wildcloud/config.yaml not found"
-    exit 1
-fi
-
-WILDCLOUD_REPO=$(yq eval '.wildcloud.repository' .wildcloud/config.yaml)
-
-if [ -z "${WILDCLOUD_REPO}" ] || [ "${WILDCLOUD_REPO}" = "null" ]; then
-    echo "Error: wildcloud.config not found in .wildcloud/config.yaml"
-    exit 1
-fi
-
-SOURCE_APP_DIR="${WILDCLOUD_REPO}/apps/${APP_NAME}"
+SOURCE_APP_DIR="${WC_ROOT}/apps/${APP_NAME}"
 if [ ! -d "${SOURCE_APP_DIR}" ]; then
     echo "Error: App '${APP_NAME}' not found at ${SOURCE_APP_DIR}"
     exit 1

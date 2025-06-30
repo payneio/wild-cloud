@@ -48,11 +48,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Get the path to the Wild-Cloud repository (where this script is located)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WILDCLOUD_REPO="$(dirname "${SCRIPT_DIR}")"
-APPS_DIR="${WILDCLOUD_REPO}/apps"
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
+    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
+fi
 
+APPS_DIR="${WC_ROOT}/apps"
 if [ ! -d "${APPS_DIR}" ]; then
     echo "Error: Apps directory not found at ${APPS_DIR}"
     exit 1

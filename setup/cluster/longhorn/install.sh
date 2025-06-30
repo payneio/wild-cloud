@@ -2,9 +2,13 @@
 set -e
 set -o pipefail
 
-if [ -z "${WC_HOME}" ]; then
-    echo "Please source the wildcloud environment first. (e.g., \`source ./env.sh\`)"
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
     exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
 fi
 
 source "${WC_ROOT}/bin/wild-common.sh"
