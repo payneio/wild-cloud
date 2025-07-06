@@ -105,7 +105,7 @@ if [ ! -f "${KERNEL_CACHE_PATH}" ] || [ ! -f "${INITRAMFS_CACHE_PATH}" ]; then
     echo "  Kernel: ${KERNEL_CACHE_PATH}"
     echo "  Initramfs: ${INITRAMFS_CACHE_PATH}"
     echo ""
-    echo "Please run 'wild-cluster-node-image-create' first to download and cache the assets."
+    echo "Please run 'wild-cluster-node-boot-assets-download' first to download and cache the assets."
     exit 1
 fi
 
@@ -135,7 +135,7 @@ if [ ! -f "${IPXE_EFI_CACHE}" ] || [ ! -f "${IPXE_BIOS_CACHE}" ] || [ ! -f "${IP
     echo "  iPXE BIOS: ${IPXE_BIOS_CACHE}"
     echo "  iPXE ARM64: ${IPXE_ARM64_CACHE}"
     echo ""
-    echo "Please run 'wild-cluster-node-image-create' first to download and cache the assets."
+    echo "Please run 'wild-cluster-node-boot-assets-download' first to download and cache the assets."
     exit 1
 fi
 

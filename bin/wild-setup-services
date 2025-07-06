@@ -58,9 +58,6 @@ else
     init_wild_env
 fi
 
-# Check basic configuration
-check_basic_config
-
 # Check cluster configuration
 if [ -z "$(get_current_config "cluster.name")" ]; then
     print_error "Cluster configuration is missing"

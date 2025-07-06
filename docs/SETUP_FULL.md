@@ -27,7 +27,16 @@ cd ~
 mkdir ~/my-wild-cloud
 cd my-wild-cloud
 
-wild-init
+wild-setup-scaffold
+```
+
+## Download Cluster Node Boot Assets
+
+We use Talos linux for node operating systems. Run this script to download the OS for use in the rest of the setup.
+
+```bash
+# Generate node boot assets (PXE, iPXE, ISO)
+wild-cluster-node-boot-assets-download
 ```
 
 ## Dnsmasq
@@ -36,54 +45,70 @@ wild-init
 - Ensure it is accessible with ssh.
 
 ```bash
-wild-dnsmasq-install
+# Install dnsmasq with PXE boot support
+wild-dnsmasq-install --install
 ```
 
 ## Cluster Setup
 
+### Cluster Infrastructure Setup
+
 ```bash
-# ONE-TIME CLUSTER INITIALIZATION (run once per cluster)
-./init-cluster.sh
+# Configure network, cluster settings, and register nodes
+wild-setup-cluster
 ```
 
-### Join control nodes
+This interactive script will:
+- Configure network settings (router IP, DNS, DHCP range)
+- Configure cluster settings (Talos version, schematic ID, MetalLB pool)
+- Help you register control plane and worker nodes by detecting their hardware
+- Generate machine configurations for each node
+- Apply machine configurations to nodes
+- Bootstrap the cluster after the first node.
 
-Boot each nodes with Talos ISO in maintenance mode.
+### Install Cluster Services
 
 ```bash
-./detect-node-hardware.sh <maintenance-ip> <node-number>
-./generate-machine-configs.sh
-talosctl apply-config --insecure -n 192.168.8.168 --file final/controlplane-node-1.yaml
+wild-setup-services
 ```
 
-### Cluster bootstrap
-
-After all control plane nodes are configured.
+## Installing Wild Cloud Apps
 
 ```bash
-# Bootstrap the cluster using any control node
-talosctl bootstrap --nodes 192.168.8.31 --endpoint 192.168.8.31
-
-# Get kubeconfig
-talosctl kubeconfig
-
-# Verify cluster is ready
-kubectl get nodes
-```
-
-### Cluster services
-
-```bash
-./setup/cluster/setup-all.sh
-./setup/cluster/validate-setup.sh
-```
-
-## Installing Wild Cloud apps
-
-```bash
+# List available applications
 wild-apps-list
-wild-app-fetch <app>
-wild-app-config <app>
-wild-app-deploy <app>
-# Optional: Check in app templates.
+
+# Deploy an application
+wild-app-deploy <app-name>
+
+# Check app status
+wild-app-doctor <app-name>
+
+# Remove an application
+wild-app-delete <app-name>
+```
+
+## Individual Node Management
+
+If you need to manage individual nodes:
+
+```bash
+# Generate patch for a specific node
+wild-cluster-node-patch-generate <node-ip>
+
+# Generate final machine config (uses existing patch)
+wild-cluster-node-machine-config-generate <node-ip>
+
+# Apply configuration with options
+wild-cluster-node-up <node-ip> [--insecure] [--skip-patch] [--dry-run]
+```
+
+## Asset Management
+
+```bash
+# Download/cache boot assets (kernel, initramfs, ISO, iPXE)
+wild-cluster-node-boot-assets-download
+
+# Install dnsmasq with specific schematic
+wild-dnsmasq-install --schematic-id <id> --install
 ```

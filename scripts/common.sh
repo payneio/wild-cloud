@@ -21,7 +21,7 @@
 # - Print functions: print_header, print_info, print_warning, print_success, print_error
 # - Config functions: get_current_config, get_current_secret, prompt_with_default  
 # - Config helpers: prompt_if_unset_config, prompt_if_unset_secret
-# - Validation: check_wild_directory, check_basic_config
+# - Validation: check_wild_directory
 # - Utilities: command_exists, file_readable, dir_writable, generate_random_string
 
 # =============================================================================
@@ -230,15 +230,6 @@ check_wild_directory() {
             print_info "  Searched: $search_path"
             search_path="$(dirname "$search_path")"
         done
-        exit 1
-    fi
-}
-
-# Check if basic configuration exists
-check_basic_config() {
-    if [ -z "$(get_current_config "operator.email")" ]; then
-        print_error "Basic configuration is missing"
-        print_info "Run 'wild-setup-scaffold' first to configure basic settings"
         exit 1
     fi
 }

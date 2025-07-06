@@ -5,7 +5,7 @@ set -o pipefail
 
 # Usage function
 usage() {
-    echo "Usage: wild-cluster-node-image-create [options]"
+    echo "Usage: wild-cluster-node-boot-assets-download [options]"
     echo ""
     echo "Generate custom Talos installer image URLs for cluster nodes."
     echo ""

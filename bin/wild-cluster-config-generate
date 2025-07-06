@@ -11,7 +11,6 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -h, --help          Show this help message"
-    echo "  --force             Force regeneration even if config already exists"
     echo ""
     echo "This script will:"
     echo "  - Generate initial cluster secrets and configurations"
@@ -19,8 +18,7 @@ usage() {
     echo "  - Set up the foundation for node-specific machine configs"
     echo ""
     echo "Requirements:"
-    echo "  - Must be run from a wild-cloud directory"
-    echo "  - Cluster name and VIP must be configured"
+    echo "  - Must be run from a Wild Cloud home directory"
     echo "  - talosctl must be available in PATH"
 }
 
@@ -31,10 +29,6 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             usage
             exit 0
-            ;;
-        --force)
-            FORCE=true
-            shift
             ;;
         -*)
             echo "Unknown option $1"
@@ -68,92 +62,40 @@ print_header "Talos Cluster Configuration Generation"
 NODE_SETUP_DIR="${WC_HOME}/setup/cluster-nodes"
 mkdir -p "${NODE_SETUP_DIR}/generated"
 
-# Check if cluster configuration already exists
+# Generate cluster secrets
+
 if [ -f "${NODE_SETUP_DIR}/generated/secrets.yaml" ] && [ "$FORCE" = false ]; then
-    print_success "Cluster configuration already exists"
-    print_info "Generated files:"
-    for file in "${NODE_SETUP_DIR}/generated"/*.yaml; do
-        if [ -f "$file" ]; then
-            print_info "  - $(basename "$file")"
-        fi
-    done
-    echo ""
-    print_info "Use --force to regenerate cluster configuration"
+    print_success "Cluster secrets already exists in ${NODE_SETUP_DIR}/generated/"
     exit 0
 fi
 
-# Get cluster configuration
-CLUSTER_NAME=$(get_current_config "cluster.name")
-VIP=$(get_current_config "cluster.nodes.control.vip")
-
-# Validate required configuration
-if [ -z "$CLUSTER_NAME" ] || [ "$CLUSTER_NAME" = "null" ]; then
-    print_error "Cluster name not configured"
-    print_info "Please run 'wild-setup' first to configure cluster.name"
-    exit 1
+# Prepare directory for generated secrets
+print_info "Generating new cluster secrets..."
+if [ -d "${NODE_SETUP_DIR}/generated" ]; then
+    print_warning "Removing existing secrets directory..."
+    rm -rf "${NODE_SETUP_DIR}/generated"
 fi
+mkdir -p "${NODE_SETUP_DIR}/generated"
+talosctl gen secrets
+print_info "New secrets will be generated in ${NODE_SETUP_DIR}/generated/"
 
-if [ -z "$VIP" ] || [ "$VIP" = "null" ]; then
-    print_error "Control plane VIP not configured"
-    print_info "Please run 'wild-setup' first to configure cluster.nodes.control.vip"
-    exit 1
-fi
+# Ensure we have the configuration we need.     
+
+prompt_if_unset_config "cluster.name" "Cluster name" "wild-cluster"
+CLUSTER_NAME=$(wild-config "cluster.name")
+
+prompt_if_unset_config "cluster.nodes.control.vip" "Control plane virtual IP (VIP)"
+VIP=$(wild-config "cluster.nodes.control.vip")
 
 # Generate cluster configuration
 print_info "Generating initial cluster configuration..."
 print_info "Cluster name: $CLUSTER_NAME"
 print_info "Control plane endpoint: https://$VIP:6443"
 
-if [ "$FORCE" = true ] && [ -d "${NODE_SETUP_DIR}/generated" ]; then
-    print_warning "Removing existing cluster configuration..."
-    rm -rf "${NODE_SETUP_DIR}/generated"
-    mkdir -p "${NODE_SETUP_DIR}/generated"
-fi
-
 cd "${NODE_SETUP_DIR}/generated"
-talosctl gen secrets
 talosctl gen config --with-secrets secrets.yaml "$CLUSTER_NAME" "https://$VIP:6443"
 cd - >/dev/null
 
 # Verify generated files
-REQUIRED_FILES=("secrets.yaml" "controlplane.yaml" "worker.yaml" "talosconfig")
-MISSING_FILES=()
-
-for file in "${REQUIRED_FILES[@]}"; do
-    if [ ! -f "${NODE_SETUP_DIR}/generated/$file" ]; then
-        MISSING_FILES+=("$file")
-    fi
-done
-
-if [ ${#MISSING_FILES[@]} -gt 0 ]; then
-    print_error "Some required files were not generated:"
-    for file in "${MISSING_FILES[@]}"; do
-        print_error "  - $file"
-    done
-    exit 1
-fi
-
-print_success "Cluster configuration generated successfully!"
-echo ""
-print_info "Generated files:"
-for file in "${NODE_SETUP_DIR}/generated"/*.yaml "${NODE_SETUP_DIR}/generated/talosconfig"; do
-    if [ -f "$file" ]; then
-        filesize=$(du -h "$file" | cut -f1)
-        print_success "  ✓ $(basename "$file") ($filesize)"
-    fi
-done
-
-echo ""
-print_info "Configuration details:"
-print_info "  - Cluster name: $CLUSTER_NAME"
-print_info "  - Control plane endpoint: https://$VIP:6443"
-print_info "  - Generated in: ${NODE_SETUP_DIR}/generated/"
-
-echo ""
-print_info "Next steps:"
-echo "  1. Node-specific machine configs can now be generated"
-echo "  2. Use wild-cluster-node-machine-config-generate <ip> for each node"
-echo "  3. Apply configs to nodes with talosctl apply-config"
-echo "  4. Bootstrap the first control plane node"
 
 print_success "Cluster configuration generation completed!"

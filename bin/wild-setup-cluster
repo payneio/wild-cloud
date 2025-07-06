@@ -66,22 +66,31 @@ else
     init_wild_env
 fi
 
-# Check basic configuration
-check_basic_config
-
 print_header "Wild Cloud Cluster Setup"
 print_info "Setting up cluster infrastructure"
 echo ""
 
-# =============================================================================
+# Generate initial cluster configuration
+
+wild-cluster-config-generate
+
+# Configure Talos cli with our new cluster context
+
+HAS_CONTEXT=$(talos config get | grep -c "<cluster.name>")
+if [ "$HAS_CONTEXT" -eq 0 ]; then
+    print_info "No Talos context found for cluster <cluster.name>, creating..."
+    talos config merge ${WC_HOME}/setup/cluster-nodes/generated/talosconfig
+    talos config use <cluster.name>
+    print_success "Talos context for <cluster.name> created and set as current"
+fi
+
 # Talos asset download
-# =============================================================================
 
 if [ "${SKIP_INSTALLER}" = false ]; then
     print_header "Installer Image Generation"
     
-    print_info "Running wild-cluster-node-image-create..."
-    wild-cluster-node-image-create
+    print_info "Running wild-cluster-node-boot-assets-download..."
+    wild-cluster-node-boot-assets-download
     
     print_success "Installer image generated"
     echo ""
@@ -90,36 +99,21 @@ else
 fi
 
 # =============================================================================
-# Network and Cluster Configuration
+# Configuration
 # =============================================================================
 
+prompt_if_unset_config "owner.email" "Owner email address"
+
 # Configure network settings
-if [ -z "$(get_current_config "cloud.router.ip")" ]; then
-    print_header "Network Configuration"
-    
-    CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-    GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
-    SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-
-    prompt_if_unset_config "cloud.router.ip" "Router/Gateway IP" "${GATEWAY_IP}"
-    prompt_if_unset_config "cloud.dns.ip" "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50"
-    prompt_if_unset_config "cloud.dhcpRange" "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200"
-    prompt_if_unset_config "cloud.dnsmasq.interface" "Network interface for dnsmasq" "eth0"
-    prompt_if_unset_config "cloud.dns.externalResolver" "External DNS resolver" "1.1.1.1"
-    
-    print_success "Network configuration completed"
-    echo ""
-fi
-
-# Configure cluster settings
-print_header "Kubernetes Cluster Configuration"
-
 CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
+GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
 SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
 
-# Talos version
-prompt_if_unset_config "cluster.nodes.talos.version" "Talos version" "v1.10.4"
-talos_version=$(wild-config "cluster.nodes.talos.version")
+prompt_if_unset_config "cloud.router.ip" "Router/Gateway IP" "${GATEWAY_IP}"
+prompt_if_unset_config "cloud.dns.ip" "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50"
+prompt_if_unset_config "cloud.dhcpRange" "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200"
+prompt_if_unset_config "cloud.dnsmasq.interface" "Network interface for dnsmasq" "eth0"
+prompt_if_unset_config "cloud.dns.externalResolver" "External DNS resolver" "1.1.1.1"
 
 # MetalLB IP address pool
 prompt_if_unset_config "cluster.ipAddressPool" "MetalLB IP address pool" "${SUBNET_PREFIX}.80-${SUBNET_PREFIX}.89"
@@ -132,6 +126,10 @@ if [ -z "$current_lb_ip" ] || [ "$current_lb_ip" = "null" ]; then
     wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
     print_info "Set load balancer IP to: ${lb_ip} (first IP in MetalLB pool)"
 fi
+
+# Talos version
+prompt_if_unset_config "cluster.nodes.talos.version" "Talos version" "v1.10.4"
+talos_version=$(wild-config "cluster.nodes.talos.version")
 
 # Talos schematic ID
 current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
@@ -156,77 +154,40 @@ fi
 cluster_name=$(get_current_config "cluster.name")
 prompt_if_unset_config "cluster.externalDns.ownerId" "External DNS owner ID" "external-dns-${cluster_name}"
 
-print_success "Cluster configuration completed"
-echo ""
+
 
 # =============================================================================
-# Node Hardware Detection
+# Node setup
 # =============================================================================
 
 if [ "${SKIP_HARDWARE}" = false ]; then
-    print_header "Node Hardware Detection"
-    
-    print_info "This phase will help you register Talos nodes by discovering their hardware."
-    print_info "You'll need nodes booted in maintenance mode and accessible via IP."
-    echo ""
-    
-    # Configure control plane network topology first
-    if [ -z "$(get_current_config "cluster.nodes.control.vip")" ]; then
-        print_header "Control Plane Network Configuration"
         
-        # Detect current network for suggestions
-        CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-        SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-        
-        print_info "Configure control plane nodes (you need at least 3 for HA):"
-        echo ""
-
-        prompt_if_unset_config "cluster.nodes.control.vip" "Control plane virtual IP" "${SUBNET_PREFIX}.90"
-        vip=$(wild-config "cluster.nodes.control.vip")
-
-        # Automatically configure the first three IPs after VIP for control plane nodes
-        vip_last_octet=$(echo "$vip" | cut -d. -f4)
-        vip_prefix=$(echo "$vip" | cut -d. -f1-3)
-        
-        print_info "Configuring control plane nodes using consecutive IPs after VIP:"
-        for i in 1 2 3; do
-            node_ip="${vip_prefix}.$(( vip_last_octet + i ))"
-            print_info "  Control plane node $i: $node_ip"
+    print_header "Control Plane Configuration"
             
-            # Initialize the node in cluster.nodes.active if not already present
-            if [ -z "$(get_current_config "cluster.nodes.active.\"${node_ip}\".control")" ]; then
-                wild-config-set "cluster.nodes.active.\"${node_ip}\".control" "true"
-            fi
-        done
-        
-        print_success "Control plane network configuration completed"
-        echo ""
-    fi
-    
-    # # Generate initial cluster configuration
-    # print_header "Cluster Configuration Generation"
-    # print_info "Generating base cluster configuration with talosctl gen config..."
-    # wild-cluster-config-generate
-    
-    # Detect and register control plane nodes
-    print_header "Control Plane Node Registration"
-    
-    # Get VIP to determine control plane IPs
-    vip=$(get_current_config "cluster.nodes.control.vip")
-    if [ -z "$vip" ]; then
-        print_error "VIP not configured. Run control plane network configuration first."
-        exit 1
-    fi
-    
+    print_info "Configure control plane nodes (you need at least 3 for HA):"
+    echo ""
+
+    prompt_if_unset_config "cluster.nodes.control.vip" "Control plane virtual IP" "${SUBNET_PREFIX}.90"
+    vip=$(wild-config "cluster.nodes.control.vip")
+
+    # Automatically configure the first three IPs after VIP for control plane nodes
     vip_last_octet=$(echo "$vip" | cut -d. -f4)
     vip_prefix=$(echo "$vip" | cut -d. -f1-3)
+        
+    # Detect and register control plane nodes
+    print_header "Control Plane Node Registration"
     
     # Process each control plane node IP
     for i in 1 2 3; do
         TARGET_IP="${vip_prefix}.$(( vip_last_octet + i ))"
         echo ""
         print_info "Registering control plane node: $TARGET_IP"
-        
+
+        # Initialize the node in cluster.nodes.active if not already present
+        if [ -z "$(get_current_config "cluster.nodes.active.\"${TARGET_IP}\".control")" ]; then
+            wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".control" "true"
+        fi
+
         # Check if node is already configured
         existing_interface=$(get_current_config "cluster.nodes.active.\"${TARGET_IP}\".interface")
         if [ -n "$existing_interface" ] && [ "$existing_interface" != "null" ]; then
@@ -234,25 +195,25 @@ if [ "${SKIP_HARDWARE}" = false ]; then
             print_info "  - Interface: $existing_interface"
             print_info "  - Disk: $(get_current_config "cluster.nodes.active.\"${TARGET_IP}\".disk")"
             
-            # Generate machine config for this node if necessary.
+            # Generate machine config patch for this node if necessary.
             NODE_SETUP_DIR="${WC_HOME}/setup/cluster-nodes"
-            CONFIG_FILE="${NODE_SETUP_DIR}/final/${TARGET_IP}.yaml"
+            CONFIG_FILE="${NODE_SETUP_DIR}/patch/${TARGET_IP}.yaml"
             if [ ! -f "$CONFIG_FILE" ]; then
-                print_info "Generating missing machine configuration for $TARGET_IP..."
-                if wild-cluster-node-machine-config-generate "$TARGET_IP"; then
-                    print_success "Machine configuration generated for $TARGET_IP"
+                print_info "Generating missing machine configuration patch for $TARGET_IP..."
+                if wild-cluster-node-patch-generate "$TARGET_IP"; then
+                    print_success "Machine configuration patch generated for $TARGET_IP"
                 else
-                    print_warning "Failed to generate machine configuration for $TARGET_IP"
+                    print_warning "Failed to generate machine configuration patch for $TARGET_IP"
                 fi
             else
-                print_info "  ✓ Machine config exists: $CONFIG_FILE"
+                print_info "  ✓ Machine configuration patch exists: $CONFIG_FILE"
             fi
             continue
         fi
-        
-        read -p "Do you want to register control plane node $TARGET_IP now? (y/N): " -r register_node
+
+        read -p "Do you want to bring up control plane node $TARGET_IP now? (y/N): " -r register_node
         if [[ ! $register_node =~ ^[Yy]$ ]]; then
-            print_info "Skipping node $TARGET_IP registration"
+            print_info "Skipping bringing up node $TARGET_IP registration"
             continue
         fi
         
@@ -319,7 +280,6 @@ if [ "${SKIP_HARDWARE}" = false ]; then
             print_info "Updating configuration for $TARGET_IP..."
             wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".interface" "$INTERFACE"
             wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".disk" "$SELECTED_DISK"
-            wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".control" "true"
             
             # Copy current Talos version and schematic ID to this node
             current_talos_version=$(get_current_config "cluster.nodes.talos.version")
@@ -330,34 +290,57 @@ if [ "${SKIP_HARDWARE}" = false ]; then
             if [ -n "$current_schematic_id" ] && [ "$current_schematic_id" != "null" ]; then
                 wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".schematicId" "$current_schematic_id"
             fi
-            
-            print_success "Node $TARGET_IP registered successfully"
-            
-            # Generate machine config.
-            print_info "Generating machine configuration for $TARGET_IP..."
-            if wild-cluster-node-machine-config-generate "$TARGET_IP"; then
-                print_success "Machine configuration generated for $TARGET_IP"
-                
-                # Ask if user wants to apply the configuration now
-                echo ""
-                read -p "Apply configuration to node $TARGET_IP now? (y/N): " -r apply_config
-                if [[ $apply_config =~ ^[Yy]$ ]]; then
-                    if [ "$DETECTION_IP" != "$TARGET_IP" ]; then
-                        # Node is in maintenance mode, use insecure flag
-                        print_info "Applying configuration in insecure mode (maintenance mode)..."
-                        wild-cluster-node-up "$TARGET_IP" --insecure
-                    else
-                        # Node is already configured, use secure mode
-                        print_info "Applying configuration..."
-                        wild-cluster-node-up "$TARGET_IP"
-                    fi
+  
+            echo ""
+            read -p "Bring node $TARGET_IP up now? (y/N): " -r apply_config
+            if [[ $apply_config =~ ^[Yy]$ ]]; then
+                if [ "$DETECTION_IP" != "$TARGET_IP" ]; then
+                    # Node is in maintenance mode, use insecure flag
+                    print_info "Applying configuration in insecure mode (maintenance mode)..."
+                    wild-cluster-node-up "$TARGET_IP" --insecure
                 else
-                    print_info "Configuration not applied. You can apply it later with:"
-                    print_info "  wild-cluster-node-up $TARGET_IP --insecure"
+                    # Node is already configured, use secure mode
+                    print_info "Applying configuration..."
+                    wild-cluster-node-up "$TARGET_IP"
                 fi
+
+                # Bootstrap the cluster after the first node is up.
+                if [ "$i" -eq 1 ]; then
+                    read -p "The cluster should be bootstrapped after the first control node is ready. Is it ready?: " -r is_ready
+                    if [[ $is_ready =~ ^[Yy]$ ]]; then
+                        print_info "Bootstrapping control plane node $TARGET_IP..."
+                        talos config endpoint "$TARGET_IP"
+                        
+                        # Attempt to bootstrap the cluster
+                        if talosctl bootstrap --nodes "$TARGET_IP" 2>&1 | tee /tmp/bootstrap_output.log; then
+                            print_success "Control plane node $TARGET_IP bootstrapped successfully!"
+                        else
+                            # Check if the error is because it's already bootstrapped
+                            if grep -q "etcd data directory is not empty\|AlreadyExists" /tmp/bootstrap_output.log; then
+                                print_info "Cluster is already bootstrapped on $TARGET_IP"
+                            else
+                                print_error "Failed to bootstrap control plane node $TARGET_IP"
+                                print_info "Bootstrap output:"
+                                cat /tmp/bootstrap_output.log
+                                rm -f /tmp/bootstrap_output.log
+                                continue
+                            fi
+                        fi
+                        rm -f /tmp/bootstrap_output.log
+
+                        talosctl config endpoint "$vip"
+                        print_info "Talos endpoint set to control plane VIP: $vip"
+
+                        talosctl kubeconfig "$vip"
+                        print_success "Talos kubeconfig updated for control plane VIP: $vip"
+                    fi
+                fi
+
             else
-                print_warning "Failed to generate machine configuration for $TARGET_IP"
+                print_info "Configuration not applied. You can apply it later with:"
+                print_info "  wild-cluster-node-up $TARGET_IP --insecure"
             fi
+            
         fi
     done
     
