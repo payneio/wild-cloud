@@ -14,35 +14,42 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -i, --insecure      Apply configuration in insecure mode (for maintenance mode nodes)"
+    echo "  --skip-patch        Skip automatic patch generation and use existing final config"
     echo "  --dry-run           Show the command that would be executed without running it"
     echo "  -h, --help          Show this help message"
     echo ""
     echo "Examples:"
     echo "  wild-cluster-node-up 192.168.1.91"
     echo "  wild-cluster-node-up 192.168.1.100 --insecure"
+    echo "  wild-cluster-node-up 192.168.1.100 --skip-patch"
     echo "  wild-cluster-node-up 192.168.1.100 --dry-run"
     echo ""
     echo "This script will:"
     echo "  - Verify the node is registered in config.yaml"
-    echo "  - Check that a machine configuration exists for the node"
+    echo "  - Generate final machine configuration if needed"
     echo "  - Apply the configuration using talosctl apply-config"
     echo "  - Use insecure mode for nodes in maintenance mode"
     echo ""
     echo "Requirements:"
     echo "  - Must be run from a wild-cloud directory"
     echo "  - Node must be registered (hardware detected) first"
-    echo "  - Machine configuration must exist for the node"
+    echo "  - Base cluster configuration and patch file must exist for the node"
 }
 
 # Parse arguments
 NODE_IP=""
 INSECURE_MODE=false
 DRY_RUN=false
+SKIP_PATCH=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         -i|--insecure)
             INSECURE_MODE=true
+            shift
+            ;;
+        --skip-patch)
+            SKIP_PATCH=true
             shift
             ;;
         --dry-run)
@@ -139,18 +146,59 @@ if [ -n "$MAINTENANCE_IP" ] && [ "$MAINTENANCE_IP" != "null" ]; then
     print_info "  - Maintenance IP: $MAINTENANCE_IP"
 fi
 
-# Check if machine config exists
+# Check if machine config exists, generate if needed
 NODE_SETUP_DIR="${WC_HOME}/setup/cluster-nodes"
 CONFIG_FILE="${NODE_SETUP_DIR}/final/${NODE_IP}.yaml"
+PATCH_FILE="${NODE_SETUP_DIR}/patch/${NODE_IP}.yaml"
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    print_error "Machine configuration not found: $CONFIG_FILE"
-    print_info "Generate the machine configuration first:"
-    print_info "  wild-cluster-node-machine-config-generate $NODE_IP"
-    exit 1
+    if [ "$SKIP_PATCH" = true ]; then
+        print_error "Machine configuration not found: $CONFIG_FILE"
+        print_info "--skip-patch was specified but no existing config found"
+        print_info "Either generate the configuration first or remove --skip-patch:"
+        print_info "  wild-cluster-node-machine-config-generate $NODE_IP"
+        exit 1
+    fi
+    
+    print_info "Machine configuration not found: $CONFIG_FILE"
+    print_info "Generating final machine configuration..."
+    
+    # Check if patch file exists
+    if [ ! -f "$PATCH_FILE" ]; then
+        print_error "Patch file not found: $PATCH_FILE"
+        print_info "Generate the patch file first:"
+        print_info "  wild-cluster-node-patch-generate $NODE_IP"
+        exit 1
+    fi
+    
+    # Determine base config file
+    if [ "$IS_CONTROL" = "true" ]; then
+        BASE_CONFIG="${NODE_SETUP_DIR}/generated/controlplane.yaml"
+    else
+        BASE_CONFIG="${NODE_SETUP_DIR}/generated/worker.yaml"
+    fi
+    
+    # Check if base config exists
+    if [ ! -f "$BASE_CONFIG" ]; then
+        print_error "Base configuration not found: $BASE_CONFIG"
+        print_info "Generate base cluster configuration first:"
+        print_info "  wild-cluster-config-generate"
+        exit 1
+    fi
+    
+    # Create final config directory if it doesn't exist
+    mkdir -p "${NODE_SETUP_DIR}/final"
+    
+    # Generate final machine config
+    print_info "Generating final machine configuration from patch..."
+    talosctl machineconfig patch "$BASE_CONFIG" --patch @"$PATCH_FILE" -o "$CONFIG_FILE"
+    print_success "Generated machine configuration: $CONFIG_FILE"
+else
+    print_success "Found existing machine configuration: $CONFIG_FILE"
+    if [ "$SKIP_PATCH" = true ]; then
+        print_info "--skip-patch specified: using existing configuration without regeneration"
+    fi
 fi
-
-print_success "Found machine configuration: $CONFIG_FILE"
 
 # Build talosctl command
 TALOSCTL_CMD="talosctl apply-config"
@@ -179,6 +227,11 @@ echo ""
 
 if eval "$TALOSCTL_CMD"; then
     print_success "Machine configuration applied successfully!"
+    
+    # Update talosctl context to this node
+    print_info "Updating talosctl context..."
+    talosctl config node "$NODE_IP"
+    print_success "Updated talosctl context to node $NODE_IP"
     echo ""
     
     if [ "$IS_CONTROL" = "true" ]; then

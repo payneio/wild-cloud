@@ -1,13 +1,13 @@
-#\!/bin/bash
+#!/bin/bash
 
 set -e
 set -o pipefail
 
 # Usage function
 usage() {
-    echo "Usage: wild-cluster-node-machine-config-generate <node-ip>"
+    echo "Usage: wild-cluster-node-patch-generate <node-ip>"
     echo ""
-    echo "Generate Talos machine configuration for a specific registered node."
+    echo "Generate Talos machine configuration patches for a specific registered node."
     echo ""
     echo "Arguments:"
     echo "  node-ip             IP address of the registered node"
@@ -16,15 +16,13 @@ usage() {
     echo "  -h, --help          Show this help message"
     echo ""
     echo "Examples:"
-    echo "  wild-cluster-node-machine-config-generate 192.168.1.91"
-    echo "  wild-cluster-node-machine-config-generate 192.168.1.100"
+    echo "  wild-cluster-node-patch-generate 192.168.1.91"
+    echo "  wild-cluster-node-patch-generate 192.168.1.100"
     echo ""
     echo "This script will:"
-    echo "  - Generate initial cluster secrets if not present"
-    echo "  - Use patch templates from the wild-cloud repository"
-    echo "  - Create machine configuration for the specified node"
-    echo "  - Generate patched config with node-specific hardware settings"
-    echo "  - Update talosctl context with the node"
+    echo "  - Compile patch templates for the specified node"
+    echo "  - Generate node-specific patch files in WC_HOME/setup/cluster-nodes/patch/"
+    echo "  - Use hardware details from the node registration"
     echo ""
     echo "Requirements:"
     echo "  - Must be run from a wild-cloud directory"
@@ -79,19 +77,15 @@ prompt_if_unset_config "cluster.name" "Cluster name" "local.example.com"
 
 # Function to ensure required directories exist in WC_HOME
 ensure_required_directories() {
-    # Create output directories in WC_HOME for patch and final configs
+    # Create output directories in WC_HOME for patch configs
     mkdir -p "${WC_HOME}/setup/cluster-nodes/patch"
-    mkdir -p "${WC_HOME}/setup/cluster-nodes/final"
-    
-    # Ensure the generated directory exists (for cluster secrets)
-    mkdir -p "${WC_HOME}/setup/cluster-nodes/generated"
 }
 
 # =============================================================================
-# MACHINE CONFIG GENERATION
+# PATCH GENERATION
 # =============================================================================
 
-print_header "Talos Machine Config Generation"
+print_header "Talos Machine Config Patch Generation"
 
 # Ensure required directories exist in WC_HOME
 ensure_required_directories
@@ -109,9 +103,8 @@ fi
 
 # Get cluster configuration from config.yaml
 CLUSTER_NAME=$(wild-config cluster.name)
-VIP=$(wild-config cluster.nodes.control.vip)
 
-print_info "Generating machine configuration for node: $NODE_IP"
+print_info "Generating patch for node: $NODE_IP"
 print_info "Cluster: $CLUSTER_NAME"
 
 # Check if the specified node is registered
@@ -146,15 +139,12 @@ print_info "Compiling patch template for $NODE_TYPE node $NODE_IP..."
 
 if [ "$NODE_TYPE" = "control" ]; then
     TEMPLATE_FILE="${TEMPLATE_SOURCE_DIR}/patch.templates/controlplane.yaml"
-    BASE_CONFIG="${NODE_SETUP_DIR}/generated/controlplane.yaml"
 else
     TEMPLATE_FILE="${TEMPLATE_SOURCE_DIR}/patch.templates/worker.yaml" 
-    BASE_CONFIG="${NODE_SETUP_DIR}/generated/worker.yaml"
 fi
 
-# Use IP as the patch name and output config name
+# Use IP as the patch name
 PATCH_FILE="${NODE_SETUP_DIR}/patch/${NODE_IP}.yaml"
-OUTPUT_CONFIG="${NODE_SETUP_DIR}/final/${NODE_IP}.yaml"
 
 # Create a temporary template with the node IP for gomplate processing
 TEMP_TEMPLATE="/tmp/${NODE_IP//\//_}-$(date +%s).yaml"
@@ -162,35 +152,11 @@ sed "s/{{NODE_IP}}/${NODE_IP}/g" "$TEMPLATE_FILE" > "$TEMP_TEMPLATE"
 cat "$TEMP_TEMPLATE" | wild-compile-template > "$PATCH_FILE"
 rm -f "$TEMP_TEMPLATE"
 
-# Generate final machine config for the specified node
-print_info "Generating final machine configuration..."
-talosctl machineconfig patch "$BASE_CONFIG" --patch @"$PATCH_FILE" -o "$OUTPUT_CONFIG"
-
-# Update talosctl context with this node
-print_info "Updating talosctl context..."
-talosctl config node "$NODE_IP"
-
-print_success "Machine configuration generated successfully!"
+print_success "Patch generated successfully!"
 echo ""
-print_info "Generated files:"
-print_info "  - Patch: $PATCH_FILE"
-print_info "  - Final config: $OUTPUT_CONFIG"
+print_info "Generated patch file:"
+print_info "  - $PATCH_FILE"
 echo ""
 print_info "Template used: ${TEMPLATE_FILE}"
 
-echo ""
-print_info "Next steps:"
-echo "  1. Apply configuration to the node:"
-echo "     talosctl apply-config -i -n $NODE_IP -f $OUTPUT_CONFIG"
-echo ""
-if [ "$NODE_TYPE" = "control" ]; then
-    echo "  2. If this is your first control plane node, bootstrap it:"
-    echo "     talosctl bootstrap -n $NODE_IP"
-    echo ""
-    echo "  3. Get kubeconfig when cluster is ready:"
-    echo "     talosctl kubeconfig"
-else
-    echo "  2. Node will join the cluster automatically after applying config"
-fi
-
-print_success "Machine config generation completed!"
+print_success "Patch generation completed!"
