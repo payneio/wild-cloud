@@ -1,0 +1,73 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# Parse arguments
+UPDATE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --update)
+            UPDATE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--update]"
+            echo ""
+            echo "Copy Wild-Cloud documentation to the current cloud directory."
+            echo ""
+            echo "Options:"
+            echo "  --update            Update existing docs (overwrite)"
+            echo "  -h, --help          Show this help message"
+            echo ""
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1"
+            echo "Usage: $0 [--update]"
+            exit 1
+            ;;
+        *)
+            echo "Unexpected argument: $1"
+            echo "Usage: $0"
+            exit 1
+            ;;
+    esac
+done
+
+# Initialize Wild-Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    echo "WC_ROOT is not set."
+    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
+fi
+
+DOCS_DEST="${WC_HOME}/docs"
+
+# Check if docs already exist
+if [ -d "${DOCS_DEST}" ] && [ "${UPDATE}" = false ]; then
+    echo "Documentation already exists at ${DOCS_DEST}"
+    read -p "Do you want to update documentation files? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        UPDATE=true
+    else
+        echo "Skipping documentation update."
+        exit 0
+    fi
+fi
+
+# Copy docs directory from root to WC_HOME
+if [ -d "${WC_ROOT}/docs" ]; then
+    if [ "${UPDATE}" = true ] && [ -d "${DOCS_DEST}" ]; then
+        rm -rf "${DOCS_DEST}"
+    fi
+    cp -r "${WC_ROOT}/docs" "${DOCS_DEST}"
+    print_success "Documentation copied to ${DOCS_DEST}"
+else
+    print_error "Source docs directory not found: ${WC_ROOT}/docs"
+    exit 1
+fi

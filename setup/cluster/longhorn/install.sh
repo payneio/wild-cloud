@@ -11,8 +11,6 @@ else
     init_wild_env
 fi
 
-source "${WC_ROOT}/bin/wild-common.sh"
-
 CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
 LONGHORN_DIR="${CLUSTER_SETUP_DIR}/longhorn"
 
