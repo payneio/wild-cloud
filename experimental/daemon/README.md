@@ -1,1 +1,1 @@
-# Wild-cloud API Backend Service
+# Wild Cloud API Backend Service

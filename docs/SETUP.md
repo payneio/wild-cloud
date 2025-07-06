@@ -1,4 +1,4 @@
-# Setting Up Your Wild-cloud
+# Setting Up Your Wild Cloud
 
 Install dependencies:
 

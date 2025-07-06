@@ -17,7 +17,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [--update]"
             echo ""
-            echo "Initialize Wild-Cloud scaffold and basic configuration."
+            echo "Initialize Wild Cloud scaffold and basic configuration."
             echo ""
             echo "Options:"
             echo "  --update            Update existing cloud files (overwrite)"
@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
@@ -62,7 +62,7 @@ TEMPLATE_DIR="${WC_ROOT}/setup/home-scaffold"
 
 # Check if cloud already exists
 if [ -d ".wildcloud" ]; then
-    echo "Wild-Cloud already exists in this directory."
+    echo "Wild Cloud already exists in this directory."
     echo ""
     read -p "Do you want to update cloud files? (y/N): " -n 1 -r
     echo
@@ -84,7 +84,7 @@ else
         fi
     fi
     
-    echo "Initializing Wild-Cloud in $(pwd)"
+    echo "Initializing Wild Cloud in $(pwd)"
     UPDATE=false
 fi
 
@@ -137,7 +137,7 @@ if [ ! -d ".wildcloud" ] || [ "${UPDATE}" = true ]; then
     copy_cloud_files "${TEMPLATE_DIR}" "."
     
     echo ""
-    echo "Wild-Cloud initialized successfully!"
+    echo "Wild Cloud initialized successfully!"
     echo ""
 fi
 
@@ -171,7 +171,7 @@ fi
 # COMPLETION
 # =============================================================================
 
-print_header "Wild-Cloud Scaffold Setup Complete!"
+print_header "Wild Cloud Scaffold Setup Complete!"
 
 print_success "Cloud scaffold initialized successfully!"
 echo ""

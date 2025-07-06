@@ -19,7 +19,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 <app_name> [--force] [--dry-run]"
             echo ""
-            echo "Delete a Wild-Cloud app and all its resources."
+            echo "Delete a Wild Cloud app and all its resources."
             echo ""
             echo "Options:"
             echo "  --force     Skip confirmation prompts"
@@ -61,7 +61,7 @@ if [ ! -d "apps/${APP_NAME}" ]; then
     exit 1
 fi
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
     exit 1

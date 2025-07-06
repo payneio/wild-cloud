@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
@@ -69,7 +69,7 @@ fi
 # Check basic configuration
 check_basic_config
 
-print_header "Wild-Cloud Cluster Setup"
+print_header "Wild Cloud Cluster Setup"
 print_info "Setting up cluster infrastructure"
 echo ""
 
@@ -480,7 +480,7 @@ fi
 # COMPLETION
 # =============================================================================
 
-print_header "Wild-Cloud Cluster Setup Complete!"
+print_header "Wild Cloud Cluster Setup Complete!"
 
 print_success "Cluster infrastructure setup completed!"
 echo ""

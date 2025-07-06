@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [--verbose] [--json|--yaml]"
             echo ""
-            echo "List all available Wild-Cloud apps with their metadata."
+            echo "List all available Wild Cloud apps with their metadata."
             echo ""
             echo "Options:"
             echo "  --verbose, -v  Show additional metadata (icon, requires)"
@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
     exit 1
@@ -142,12 +142,12 @@ extract_app_metadata() {
 # Output header for table format
 if [ "${OUTPUT_FORMAT}" = "table" ]; then
     if [ "${VERBOSE}" = true ]; then
-        echo "Available Wild-Cloud Apps (verbose):"
+        echo "Available Wild Cloud Apps (verbose):"
         echo "==================================================================================="
         printf "%-15s %-10s %-12s %-40s %-15s %s\n" "NAME" "VERSION" "INSTALLED" "DESCRIPTION" "REQUIRES" "ICON"
         printf "%-15s %-10s %-12s %-40s %-15s %s\n" "----" "-------" "---------" "-----------" "--------" "----"
     else
-        echo "Available Wild-Cloud Apps:"
+        echo "Available Wild Cloud Apps:"
         echo "========================================================================================================="
         printf "%-15s %-10s %-12s %s\n" "NAME" "VERSION" "INSTALLED" "DESCRIPTION"
         printf "%-15s %-10s %-12s %s\n" "----" "-------" "---------" "-----------"

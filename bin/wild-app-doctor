@@ -78,7 +78,7 @@ if [[ -z "$APP_NAME" ]]; then
   show_help
 fi
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
     exit 1

@@ -1,4 +1,4 @@
-# Your Wild-Cloud
+# Your Wild Cloud
 
 ## One-time Setup
 
@@ -12,7 +12,7 @@ wild-setup
 
 ## Using your wild-cloud
 
-### Installing Wild-Cloud apps
+### Installing Wild Cloud apps
 
 ```bash
 wild-apps-list

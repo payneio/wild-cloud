@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # wild-common.sh
-# Common utility functions for Wild-Cloud shell scripts
+# Common utility functions for Wild Cloud shell scripts
 # Source this file at the beginning of scripts to access shared functionality
 #
 # USAGE PATTERN:
@@ -14,7 +14,7 @@
 #   # Source common utilities
 #   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wild-common.sh"
 #   
-#   # Initialize Wild-Cloud environment
+#   # Initialize Wild Cloud environment
 #   init_wild_env
 #
 # AVAILABLE FUNCTIONS:
@@ -180,7 +180,7 @@ find_wc_home() {
     return 1
 }
 
-# Initialize common Wild-Cloud environment variables
+# Initialize common Wild Cloud environment variables
 # Call this function at the beginning of scripts
 init_wild_env() {
     if [ -z "${WC_ROOT}" ]; then

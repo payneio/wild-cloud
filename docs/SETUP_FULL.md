@@ -1,4 +1,4 @@
-# Wild-cloud Setup
+# Wild Cloud Setup
 
 ## Hardware prerequisites
 
@@ -78,7 +78,7 @@ kubectl get nodes
 ./setup/cluster/validate-setup.sh
 ```
 
-## Installing Wild-Cloud apps
+## Installing Wild Cloud apps
 
 ```bash
 wild-apps-list

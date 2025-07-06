@@ -1,6 +1,6 @@
-# Wild-Cloud App Workflow
+# Wild Cloud App Workflow
 
-The Wild-cloud app workflow consists of three steps:
+The Wild Cloud app workflow consists of three steps:
 
 1. **Fetch** - Download raw app templates to cache
 2. **Config** - Apply your local configuration to templates  

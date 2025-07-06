@@ -1,4 +1,4 @@
-# Converting Helm Charts to Wild-Cloud Kustomize definitions
+# Converting Helm Charts to Wild Cloud Kustomize definitions
 
 _(This guide is a work in progress)_
 

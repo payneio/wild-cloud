@@ -30,4 +30,4 @@ if ! command -v gomplate &> /dev/null; then
     exit 1
 fi
 
-echo "Wild-cloud root ready."
+echo "Wild Cloud root ready."

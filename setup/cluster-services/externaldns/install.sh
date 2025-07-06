@@ -2,7 +2,7 @@
 set -e
 set -o pipefail
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
     exit 1

@@ -15,6 +15,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_SCAFFOLD=true
             shift
             ;;
+        --skip-docs)
+            SKIP_DOCS=true
+            shift
+            ;;
         --skip-cluster)
             SKIP_CLUSTER=true
             shift
@@ -26,18 +30,19 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [component-options]"
             echo ""
-            echo "Complete Wild-Cloud setup - runs all components in sequence."
+            echo "Complete Wild Cloud setup - runs all components in sequence."
             echo ""
             echo "Component Control Options:"
             echo "  --skip-scaffold     Skip scaffold setup (cloud initialization)"
-            echo "  --skip-cluster      Skip cluster setup (Phases 1-3)"
-            echo "  --skip-services     Skip services setup (Phase 4)"
+            echo "  --skip-docs         Skip cloud documentation setup"
+            echo "  --skip-cluster      Skip cluster setup"
+            echo "  --skip-services     Skip services setup"
             echo "  -h, --help          Show this help message"
             echo ""
             echo "This script runs:"
             echo "  1. wild-setup-scaffold   # Cloud initialization and basic config"
-            echo "  2. wild-setup-cluster    # Cluster infrastructure (Phases 1-3)"
-            echo "  3. wild-setup-services   # Cluster services (Phase 4)"
+            echo "  2. wild-setup-cluster    # Cluster infrastructure"
+            echo "  3. wild-setup-services   # Cluster services"
             echo ""
             echo "You can also run these components individually:"
             echo "  - wild-setup-scaffold  [--update]"
@@ -65,7 +70,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Initialize Wild-Cloud environment
+# Initialize Wild Cloud environment
 
 if [ -z "${WC_ROOT}" ]; then
     print "WC_ROOT is not set."
@@ -75,8 +80,8 @@ else
     init_wild_env
 fi
 
-print_header "Wild-Cloud Setup"
-print_info "Running complete Wild-Cloud setup."
+print_header "Wild Cloud Setup"
+print_info "Running complete Wild Cloud setup."
 echo ""
 
 # =============================================================================
@@ -95,7 +100,26 @@ if [ "${SKIP_SCAFFOLD}" = false ]; then
     fi
     echo ""
 else
-    print_info "Skipping Component 1: Cloud Home Setup"
+    print_info "Skipping Home Setup"
+fi
+
+# =============================================================================
+# DOCS
+# =============================================================================
+
+if [ "${SKIP_DOCS}" = false ]; then
+    print_header "Cloud Docs"
+    print_info "Preparing your docs..."
+
+    if wild-setup-docs; then
+        print_success "Cloud docs setup completed"
+    else
+        print_error "Cloud docs setup failed"
+        exit 1
+    fi
+    echo ""
+else
+    print_info "Skipping Docs Setup"
 fi
 
 # =============================================================================
@@ -114,7 +138,7 @@ if [ "${SKIP_CLUSTER}" = false ]; then
     fi
     echo ""
 else
-    print_info "Skipping Component 2: Cluster Setup"
+    print_info "Skipping Cluster Setup"
 fi
 
 # =============================================================================
@@ -133,25 +157,25 @@ if [ "${SKIP_SERVICES}" = false ]; then
     fi
     echo ""
 else
-    print_info "Skipping Component 3: Services Setup"
+    print_info "Skipping cluster services setup"
 fi
 
 # =============================================================================
 # FINAL SUMMARY
 # =============================================================================
 
-print_header "Wild-Cloud Complete Setup Finished!"
+print_header "Wild Cloud Setup Finished!"
 
 echo ""
 if [ "${SKIP_SERVICES}" = false ] && command -v kubectl >/dev/null 2>&1; then
     if [ -f "${WC_HOME}/config.yaml" ]; then
         INTERNAL_DOMAIN=$(wild-config cloud.internalDomain 2>/dev/null || echo "your-internal-domain")
-        print_info "Your Wild-Cloud is ready!"
+        print_info "Your Wild Cloud is ready!"
         echo "  Dashboard: https://dashboard.${INTERNAL_DOMAIN}"
         echo "  Get token: ./bin/dashboard-token"
     fi
 else
-    print_info "Complete the remaining setup steps to finalize your Wild-Cloud deployment"
+    print_info "Complete the remaining setup steps to finalize your Wild Cloud deployment"
 fi
 
-print_success "Wild-Cloud setup completed!"
+print_success "Wild Cloud setup completed!"
