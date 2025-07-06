@@ -2,16 +2,22 @@
 
 # Parse command line arguments
 INSTALL_MODE=false
+SCHEMATIC_ID_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --install)
             INSTALL_MODE=true
             shift
             ;;
+        --schematic-id)
+            SCHEMATIC_ID_OVERRIDE="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--install]"
-            echo "  --install    Copy bundle to DNSMasq server and run installation"
+            echo "Usage: $0 [--install] [--schematic-id SCHEMATIC_ID]"
+            echo "  --install              Copy bundle to DNSMasq server and run installation"
+            echo "  --schematic-id ID      Use specific schematic ID instead of config default"
             exit 1
             ;;
     esac
@@ -68,17 +74,33 @@ PXE_WEB_ROOT="${BUNDLE_DIR}/ipxe-web"
 mkdir -p "${PXE_WEB_ROOT}/amd64"
 cp "${DNSMASQ_SETUP_DIR}/boot.ipxe" "${PXE_WEB_ROOT}/boot.ipxe"
 
-# Define cache directories
+# Get schematic ID from override or config
+if [ -n "$SCHEMATIC_ID_OVERRIDE" ]; then
+    SCHEMATIC_ID="$SCHEMATIC_ID_OVERRIDE"
+    echo "Using schematic ID from command line: $SCHEMATIC_ID"
+else
+    SCHEMATIC_ID=$(wild-config cluster.nodes.talos.schematicId)
+    if [ -z "$SCHEMATIC_ID" ] || [ "$SCHEMATIC_ID" = "null" ]; then
+        echo "Error: No schematic ID found in config"
+        echo "Please run 'wild-setup' first to configure your cluster"
+        echo "Or specify one with --schematic-id option"
+        exit 1
+    fi
+    echo "Using schematic ID from config: $SCHEMATIC_ID"
+fi
+
+# Define cache directories using new structure
 CACHE_DIR="${WC_HOME}/.wildcloud"
-PXE_CACHE_DIR="${CACHE_DIR}/pxe"
-IPXE_CACHE_DIR="${CACHE_DIR}/ipxe"
+SCHEMATIC_CACHE_DIR="${CACHE_DIR}/node-boot-assets/${SCHEMATIC_ID}"
+PXE_CACHE_DIR="${SCHEMATIC_CACHE_DIR}/pxe"
+IPXE_CACHE_DIR="${SCHEMATIC_CACHE_DIR}/ipxe"
 
 # Check if cached assets exist
 KERNEL_CACHE_PATH="${PXE_CACHE_DIR}/amd64/vmlinuz"
 INITRAMFS_CACHE_PATH="${PXE_CACHE_DIR}/amd64/initramfs.xz"
 
 if [ ! -f "${KERNEL_CACHE_PATH}" ] || [ ! -f "${INITRAMFS_CACHE_PATH}" ]; then
-    echo "Error: Talos PXE assets not found in cache"
+    echo "Error: Talos PXE assets not found in cache for schematic ID: ${SCHEMATIC_ID}"
     echo "Expected locations:"
     echo "  Kernel: ${KERNEL_CACHE_PATH}"
     echo "  Initramfs: ${INITRAMFS_CACHE_PATH}"
@@ -107,7 +129,7 @@ IPXE_BIOS_CACHE="${IPXE_CACHE_DIR}/undionly.kpxe"
 IPXE_ARM64_CACHE="${IPXE_CACHE_DIR}/ipxe-arm64.efi"
 
 if [ ! -f "${IPXE_EFI_CACHE}" ] || [ ! -f "${IPXE_BIOS_CACHE}" ] || [ ! -f "${IPXE_ARM64_CACHE}" ]; then
-    echo "Error: iPXE bootloader assets not found in cache"
+    echo "Error: iPXE bootloader assets not found in cache for schematic ID: ${SCHEMATIC_ID}"
     echo "Expected locations:"
     echo "  iPXE EFI: ${IPXE_EFI_CACHE}"
     echo "  iPXE BIOS: ${IPXE_BIOS_CACHE}"

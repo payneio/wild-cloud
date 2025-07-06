@@ -145,43 +145,26 @@ fi
 # BASIC CONFIGURATION
 # =============================================================================
 
-# Configure basic settings
-if [ ! -f "${WC_HOME}/config.yaml" ] || [ -z "$(get_current_config "operator.email")" ]; then
-    print_header "Basic Configuration"
-    
-    # Detect current network for suggestions
-    CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-    GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
-    SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-    print_info "Detected network: ${SUBNET_PREFIX}.x (gateway: ${GATEWAY_IP})"
-    
-    echo "This will configure basic settings for your wild-cloud deployment."
-    echo ""
-    
-    # Basic Information
-    prompt_if_unset_config "operator.email" "Your email address (for Let's Encrypt certificates)" ""
+# Basic Information
+prompt_if_unset_config "operator.email" "Your email address (for Let's Encrypt certificates)" ""
 
-    # Domain Configuration
-    prompt_if_unset_config "cloud.baseDomain" "Your base domain name (e.g., example.com)" ""
-    
-    # Get base domain to use as default for cloud domain
-    base_domain=$(wild-config "cloud.baseDomain")
-    prompt_if_unset_config "cloud.domain" "Your public cloud domain" "cloud.${base_domain}"
-    
-    # Get cloud domain to use as default for internal domain
-    domain=$(wild-config "cloud.domain")
-    prompt_if_unset_config "cloud.internalDomain" "Your internal cloud domain" "internal.${domain}"
+# Domain Configuration
+prompt_if_unset_config "cloud.baseDomain" "Your base domain name (e.g., example.com)" ""
 
-    # Derive cluster name from domain if not already set
-    current_cluster_name=$(get_current_config "cluster.name")
-    if [ -z "$current_cluster_name" ] || [ "$current_cluster_name" = "null" ]; then
-        cluster_name=$(echo "${domain}" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
-        wild-config-set "cluster.name" "${cluster_name}"
-        print_info "Set cluster name to: ${cluster_name}"
-    fi
-    
-    print_success "Basic configuration completed"
-    echo ""
+# Get base domain to use as default for cloud domain
+base_domain=$(wild-config "cloud.baseDomain")
+prompt_if_unset_config "cloud.domain" "Your public cloud domain" "cloud.${base_domain}"
+
+# Get cloud domain to use as default for internal domain
+domain=$(wild-config "cloud.domain")
+prompt_if_unset_config "cloud.internalDomain" "Your internal cloud domain" "internal.${domain}"
+
+# Derive cluster name from domain if not already set
+current_cluster_name=$(get_current_config "cluster.name")
+if [ -z "$current_cluster_name" ] || [ "$current_cluster_name" = "null" ]; then
+    cluster_name=$(echo "${domain}" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
+    wild-config-set "cluster.name" "${cluster_name}"
+    print_info "Set cluster name to: ${cluster_name}"
 fi
 
 # =============================================================================

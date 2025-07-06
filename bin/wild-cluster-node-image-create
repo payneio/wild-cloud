@@ -51,77 +51,15 @@ else
     init_wild_env
 fi
 
-# Configure basic settings if needed
-if [ ! -f "${WC_HOME}/config.yaml" ] || [ -z "$(get_current_config "operator.email")" ]; then
-    print_header "Basic Configuration"
-    
-    # Detect current network for suggestions
-    CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-    GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
-    SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-    print_info "Detected network: ${SUBNET_PREFIX}.x (gateway: ${GATEWAY_IP})"
-    
-    echo "This will configure basic settings for your wild-cloud deployment."
-    echo ""
-    
-    # Basic Information
-    current_email=$(get_current_config "operator.email")
-    email=$(prompt_with_default "Your email address (for Let's Encrypt certificates)" "" "${current_email}")
-    wild-config-set "operator.email" "${email}"
-
-    # Domain Configuration
-    current_base_domain=$(get_current_config "cloud.baseDomain")
-    base_domain=$(prompt_with_default "Your base domain name (e.g., example.com)" "" "${current_base_domain}")
-    wild-config-set "cloud.baseDomain" "${base_domain}"
-
-    current_domain=$(get_current_config "cloud.domain")
-    domain=$(prompt_with_default "Your public cloud domain" "cloud.${base_domain}" "${current_domain}")
-    wild-config-set "cloud.domain" "${domain}"
-
-    current_internal_domain=$(get_current_config "cloud.internalDomain")
-    internal_domain=$(prompt_with_default "Your internal cloud domain" "internal.${domain}" "${current_internal_domain}")
-    wild-config-set "cloud.internalDomain" "${internal_domain}"
-
-    # Derive cluster name from domain
-    cluster_name=$(echo "${domain}" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
-    wild-config-set "cluster.name" "${cluster_name}"
-    print_info "Set cluster name to: ${cluster_name}"
-    
-    print_success "Basic configuration completed"
-    echo ""
-fi
-
-# Configure cluster settings if needed
+# Check for required configuration
 if [ -z "$(get_current_config "cluster.nodes.talos.version")" ] || [ -z "$(get_current_config "cluster.nodes.talos.schematicId")" ]; then
-    print_header "Kubernetes Cluster Configuration"
-    
-    current_talos_version=$(get_current_config "cluster.nodes.talos.version")
-    talos_version=$(prompt_with_default "Talos version" "v1.10.4" "${current_talos_version}")
-    wild-config-set "cluster.nodes.talos.version" "${talos_version}"
-
-    # Talos schematic ID
-    current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
-    echo ""
-    print_info "Get your Talos schematic ID from: https://factory.talos.dev/"
-    print_info "This customizes Talos with the drivers needed for your hardware."
-    
-    # Look up default schematic ID from talos-schemas.yaml
-    default_schematic_id=""
-    schemas_file="${WC_ROOT}/setup/cluster-nodes/talos-schemas.yaml"
-    if [ -f "$schemas_file" ]; then
-        default_schematic_id=$(yq eval ".talos-schemas.\"${talos_version}\"" "$schemas_file" 2>/dev/null)
-        if [ -n "$default_schematic_id" ] && [ "$default_schematic_id" != "null" ]; then
-            print_info "Default schematic ID available for Talos $talos_version"
-        else
-            default_schematic_id=""
-        fi
-    fi
-    
-    schematic_id=$(prompt_with_default "Talos schematic ID" "${default_schematic_id}" "${current_schematic_id}")
-    wild-config-set "cluster.nodes.talos.schematicId" "${schematic_id}"
-    
-    print_success "Cluster configuration completed"
-    echo ""
+    print_header "Talos Configuration Required"
+    print_error "Missing required Talos configuration"
+    print_info "Please run 'wild-setup' first to configure your cluster"
+    print_info "Or set the required configuration manually:"
+    print_info "  wild-config-set cluster.nodes.talos.version v1.10.4"
+    print_info "  wild-config-set cluster.nodes.talos.schematicId YOUR_SCHEMATIC_ID"
+    exit 1
 fi
 
 # =============================================================================
@@ -137,35 +75,11 @@ SCHEMATIC_ID=$(get_current_config cluster.nodes.talos.schematicId)
 print_info "Creating custom Talos installer image..."
 print_info "Talos version: $TALOS_VERSION"
 
-# Check if schematic ID exists
+# Validate schematic ID
 if [ -z "$SCHEMATIC_ID" ] || [ "$SCHEMATIC_ID" = "null" ]; then
     print_error "No schematic ID found in config.yaml"
-    print_info "You can get a schematic ID from: https://factory.talos.dev/"
-    
-    # Look up default schematic ID from talos-schemas.yaml
-    fallback_default=""
-    schemas_file="${WC_ROOT}/setup/cluster-nodes/talos-schemas.yaml"
-    if [ -f "$schemas_file" ]; then
-        fallback_default=$(yq eval ".talos-schemas.\"${TALOS_VERSION}\"" "$schemas_file" 2>/dev/null)
-        if [ -n "$fallback_default" ] && [ "$fallback_default" != "null" ]; then
-            print_info "Default schematic ID available for Talos $TALOS_VERSION"
-            read -p "Enter schematic ID [$fallback_default]: " -r SCHEMATIC_ID
-            if [ -z "$SCHEMATIC_ID" ]; then
-                SCHEMATIC_ID="$fallback_default"
-            fi
-        else
-            read -p "Enter schematic ID: " -r SCHEMATIC_ID
-        fi
-    else
-        read -p "Enter schematic ID: " -r SCHEMATIC_ID
-    fi
-    
-    if [ -n "$SCHEMATIC_ID" ]; then
-        wild-config-set "cluster.nodes.talos.schematicId" "$SCHEMATIC_ID"
-    else
-        print_error "Schematic ID required for installer image generation"
-        exit 1
-    fi
+    print_info "Please run 'wild-setup' first to configure your cluster"
+    exit 1
 fi
 
 print_info "Schematic ID: $SCHEMATIC_ID"
@@ -190,12 +104,15 @@ print_info "Installer URL: $INSTALLER_URL"
 
 print_header "Downloading and Caching PXE Boot Assets"
 
-# Create cache directories
+# Create cache directories organized by schematic ID
 CACHE_DIR="${WC_HOME}/.wildcloud"
-PXE_CACHE_DIR="${CACHE_DIR}/pxe"
-IPXE_CACHE_DIR="${CACHE_DIR}/ipxe"
+SCHEMATIC_CACHE_DIR="${CACHE_DIR}/node-boot-assets/${SCHEMATIC_ID}"
+PXE_CACHE_DIR="${SCHEMATIC_CACHE_DIR}/pxe"
+IPXE_CACHE_DIR="${SCHEMATIC_CACHE_DIR}/ipxe"
+ISO_CACHE_DIR="${SCHEMATIC_CACHE_DIR}/iso"
 mkdir -p "$PXE_CACHE_DIR/amd64"
 mkdir -p "$IPXE_CACHE_DIR"
+mkdir -p "$ISO_CACHE_DIR"
 
 # Download Talos kernel and initramfs for PXE boot
 print_info "Downloading Talos PXE assets..."
@@ -248,19 +165,30 @@ download_asset "http://boot.ipxe.org/ipxe.efi" "${IPXE_CACHE_DIR}/ipxe.efi" "iPX
 download_asset "http://boot.ipxe.org/undionly.kpxe" "${IPXE_CACHE_DIR}/undionly.kpxe" "iPXE BIOS bootloader"
 download_asset "http://boot.ipxe.org/arm64-efi/ipxe.efi" "${IPXE_CACHE_DIR}/ipxe-arm64.efi" "iPXE ARM64 EFI bootloader"
 
+# Download Talos ISO
+print_info "Downloading Talos ISO..."
+ISO_URL="https://factory.talos.dev/image/${SCHEMATIC_ID}/${TALOS_VERSION}/metal-amd64.iso"
+ISO_FILENAME="talos-${TALOS_VERSION}-metal-amd64.iso"
+ISO_PATH="${ISO_CACHE_DIR}/${ISO_FILENAME}"
+download_asset "$ISO_URL" "$ISO_PATH" "Talos ISO"
+
 echo ""
 print_success "All assets downloaded and cached!"
 echo ""
-print_info "Cached assets:"
+print_info "Cached assets for schematic $SCHEMATIC_ID:"
 echo "  Talos kernel:     $KERNEL_PATH"
 echo "  Talos initramfs:  $INITRAMFS_PATH"
+echo "  Talos ISO:        $ISO_PATH"
 echo "  iPXE EFI:         ${IPXE_CACHE_DIR}/ipxe.efi"
 echo "  iPXE BIOS:        ${IPXE_CACHE_DIR}/undionly.kpxe"
 echo "  iPXE ARM64:       ${IPXE_CACHE_DIR}/ipxe-arm64.efi"
 echo ""
-print_info "Use this URL for:"
-echo "  - PXE boot configuration (update boot.ipxe kernel line)"
-echo "  - ISO creation: curl -LO https://$INSTALLER_URL"
-echo "  - USB creation: dd if=talos-installer.iso of=/dev/sdX"
+print_info "Cache location: $SCHEMATIC_CACHE_DIR"
+echo ""
+print_info "Use these assets for:"
+echo "  - PXE boot: Use kernel and initramfs from cache"
+echo "  - USB creation: Use ISO file for dd or imaging tools"
+echo "    Example: sudo dd if=$ISO_PATH of=/dev/sdX bs=4M status=progress"
+echo "  - Custom installer: https://$INSTALLER_URL"
 echo ""
 print_success "Installer image generation and asset caching completed!"

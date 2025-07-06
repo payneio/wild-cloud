@@ -90,81 +90,81 @@ else
 fi
 
 # =============================================================================
+# Network and Cluster Configuration
+# =============================================================================
+
+# Configure network settings
+if [ -z "$(get_current_config "cloud.router.ip")" ]; then
+    print_header "Network Configuration"
+    
+    CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
+    GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
+    SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
+
+    prompt_if_unset_config "cloud.router.ip" "Router/Gateway IP" "${GATEWAY_IP}"
+    prompt_if_unset_config "cloud.dns.ip" "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50"
+    prompt_if_unset_config "cloud.dhcpRange" "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200"
+    prompt_if_unset_config "cloud.dnsmasq.interface" "Network interface for dnsmasq" "eth0"
+    prompt_if_unset_config "cloud.dns.externalResolver" "External DNS resolver" "1.1.1.1"
+    
+    print_success "Network configuration completed"
+    echo ""
+fi
+
+# Configure cluster settings
+print_header "Kubernetes Cluster Configuration"
+
+CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
+SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
+
+# Talos version
+prompt_if_unset_config "cluster.nodes.talos.version" "Talos version" "v1.10.4"
+talos_version=$(wild-config "cluster.nodes.talos.version")
+
+# MetalLB IP address pool
+prompt_if_unset_config "cluster.ipAddressPool" "MetalLB IP address pool" "${SUBNET_PREFIX}.80-${SUBNET_PREFIX}.89"
+ip_pool=$(wild-config "cluster.ipAddressPool")
+
+# Load balancer IP (automatically set to first address in the pool if not set)
+current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
+if [ -z "$current_lb_ip" ] || [ "$current_lb_ip" = "null" ]; then
+    lb_ip=$(echo "${ip_pool}" | cut -d'-' -f1)
+    wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
+    print_info "Set load balancer IP to: ${lb_ip} (first IP in MetalLB pool)"
+fi
+
+# Talos schematic ID
+current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
+if [ -z "$current_schematic_id" ] || [ "$current_schematic_id" = "null" ]; then
+    echo ""
+    print_info "Get your Talos schematic ID from: https://factory.talos.dev/"
+    print_info "This customizes Talos with the drivers needed for your hardware."
+    
+    # Use current schematic ID from config as default
+    default_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
+    if [ -n "$default_schematic_id" ] && [ "$default_schematic_id" != "null" ]; then
+        print_info "Using schematic ID from config for Talos $talos_version"
+    else
+        default_schematic_id=""
+    fi
+    
+    schematic_id=$(prompt_with_default "Talos schematic ID" "${default_schematic_id}" "${current_schematic_id}")
+    wild-config-set "cluster.nodes.talos.schematicId" "${schematic_id}"
+fi
+
+# External DNS
+cluster_name=$(get_current_config "cluster.name")
+prompt_if_unset_config "cluster.externalDns.ownerId" "External DNS owner ID" "external-dns-${cluster_name}"
+
+print_success "Cluster configuration completed"
+echo ""
+
+# =============================================================================
 # Node Hardware Detection
 # =============================================================================
 
 if [ "${SKIP_HARDWARE}" = false ]; then
     print_header "Node Hardware Detection"
-    
-    # Configure network settings
-    if [ -z "$(get_current_config "cloud.router.ip")" ]; then
-        print_header "Network Configuration"
-        
-        CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-        GATEWAY_IP=$(ip route | grep default | awk '{print $3; exit}' 2>/dev/null || echo "192.168.1.1")
-        SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-
-        prompt_if_unset_config "cloud.router.ip" "Router/Gateway IP" "${GATEWAY_IP}"
-        prompt_if_unset_config "cloud.dns.ip" "DNS server IP (dnsmasq machine)" "${SUBNET_PREFIX}.50"
-        prompt_if_unset_config "cloud.dhcpRange" "DHCP range for dnsmasq" "${SUBNET_PREFIX}.100,${SUBNET_PREFIX}.200"
-        prompt_if_unset_config "cloud.dnsmasq.interface" "Network interface for dnsmasq" "eth0"
-        prompt_if_unset_config "cloud.dns.externalResolver" "External DNS resolver" "1.1.1.1"
-        
-        print_success "Network configuration completed"
-        echo ""
-    fi
-    
-    # Configure cluster settings
-    print_header "Kubernetes Cluster Configuration"
-    
-    CURRENT_IP=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "192.168.1.100")
-    SUBNET_PREFIX=$(echo "${CURRENT_IP}" | cut -d. -f1-3)
-
-    # Talos version
-    prompt_if_unset_config "cluster.nodes.talos.version" "Talos version" "v1.10.4"
-    talos_version=$(wild-config "cluster.nodes.talos.version")
-
-    # MetalLB IP address pool
-    prompt_if_unset_config "cluster.ipAddressPool" "MetalLB IP address pool" "${SUBNET_PREFIX}.80-${SUBNET_PREFIX}.89"
-    ip_pool=$(wild-config "cluster.ipAddressPool")
-
-    # Load balancer IP (automatically set to first address in the pool if not set)
-    current_lb_ip=$(get_current_config "cluster.loadBalancerIp")
-    if [ -z "$current_lb_ip" ] || [ "$current_lb_ip" = "null" ]; then
-        lb_ip=$(echo "${ip_pool}" | cut -d'-' -f1)
-        wild-config-set "cluster.loadBalancerIp" "${lb_ip}"
-        print_info "Set load balancer IP to: ${lb_ip} (first IP in MetalLB pool)"
-    fi
-
-    # Talos schematic ID
-    current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
-    if [ -z "$current_schematic_id" ] || [ "$current_schematic_id" = "null" ]; then
-        echo ""
-        print_info "Get your Talos schematic ID from: https://factory.talos.dev/"
-        print_info "This customizes Talos with the drivers needed for your hardware."
-        
-        # Look up default schematic ID from talos-schemas.yaml
-        default_schematic_id=""
-        schemas_file="${WC_ROOT}/setup/cluster-nodes/talos-schemas.yaml"
-        if [ -f "$schemas_file" ]; then
-            default_schematic_id=$(yq eval ".talos-schemas.\"${talos_version}\"" "$schemas_file" 2>/dev/null)
-            if [ -n "$default_schematic_id" ] && [ "$default_schematic_id" != "null" ]; then
-                print_info "Default schematic ID available for Talos $talos_version"
-            else
-                default_schematic_id=""
-            fi
-        fi
-        
-        schematic_id=$(prompt_with_default "Talos schematic ID" "${default_schematic_id}" "${current_schematic_id}")
-        wild-config-set "cluster.nodes.talos.schematicId" "${schematic_id}"
-    fi
-
-    # External DNS
-    cluster_name=$(get_current_config "cluster.name")
-    prompt_if_unset_config "cluster.externalDns.ownerId" "External DNS owner ID" "external-dns-${cluster_name}"
-    
-    print_success "Cluster configuration completed"
-    echo ""
     
     print_info "This phase will help you register Talos nodes by discovering their hardware."
     print_info "You'll need nodes booted in maintenance mode and accessible via IP."
@@ -321,6 +321,16 @@ if [ "${SKIP_HARDWARE}" = false ]; then
             wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".disk" "$SELECTED_DISK"
             wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".control" "true"
             
+            # Copy current Talos version and schematic ID to this node
+            current_talos_version=$(get_current_config "cluster.nodes.talos.version")
+            current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
+            if [ -n "$current_talos_version" ] && [ "$current_talos_version" != "null" ]; then
+                wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".version" "$current_talos_version"
+            fi
+            if [ -n "$current_schematic_id" ] && [ "$current_schematic_id" != "null" ]; then
+                wild-config-set "cluster.nodes.active.\"${TARGET_IP}\".schematicId" "$current_schematic_id"
+            fi
+            
             print_success "Node $TARGET_IP registered successfully"
             
             # Generate machine config.
@@ -416,6 +426,16 @@ if [ "${SKIP_HARDWARE}" = false ]; then
                 wild-config-set "cluster.nodes.active.\"${WORKER_IP}\".interface" "$INTERFACE"
                 wild-config-set "cluster.nodes.active.\"${WORKER_IP}\".disk" "$SELECTED_DISK"
                 wild-config-set "cluster.nodes.active.\"${WORKER_IP}\".control" "false"
+                
+                # Copy current Talos version and schematic ID to this node
+                current_talos_version=$(get_current_config "cluster.nodes.talos.version")
+                current_schematic_id=$(get_current_config "cluster.nodes.talos.schematicId")
+                if [ -n "$current_talos_version" ] && [ "$current_talos_version" != "null" ]; then
+                    wild-config-set "cluster.nodes.active.\"${WORKER_IP}\".version" "$current_talos_version"
+                fi
+                if [ -n "$current_schematic_id" ] && [ "$current_schematic_id" != "null" ]; then
+                    wild-config-set "cluster.nodes.active.\"${WORKER_IP}\".schematicId" "$current_schematic_id"
+                fi
                 
                 print_success "Worker node $WORKER_IP registered successfully:"
                 print_info "  - IP: $WORKER_IP"
