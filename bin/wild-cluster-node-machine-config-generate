@@ -75,12 +75,7 @@ else
     init_wild_env
 fi
 
-# Check required configuration
-if [ -z "$(get_current_config "cluster.name")" ]; then
-    print_error "Basic cluster configuration is missing"
-    print_info "Run 'wild-setup' to configure your cluster"
-    exit 1
-fi
+prompt_if_unset_config "cluster.name" "Cluster name" "local.example.com"
 
 # Function to ensure required directories exist in WC_HOME
 ensure_required_directories() {
@@ -160,13 +155,6 @@ fi
 # Use IP as the patch name and output config name
 PATCH_FILE="${NODE_SETUP_DIR}/patch/${NODE_IP}.yaml"
 OUTPUT_CONFIG="${NODE_SETUP_DIR}/final/${NODE_IP}.yaml"
-
-# Check if the patch template exists
-if [ ! -f "$TEMPLATE_FILE" ]; then
-    print_error "Patch template not found: $TEMPLATE_FILE"
-    print_info "Make sure the wild-cloud repository is properly set up"
-    exit 1
-fi
 
 # Create a temporary template with the node IP for gomplate processing
 TEMP_TEMPLATE="/tmp/${NODE_IP//\//_}-$(date +%s).yaml"

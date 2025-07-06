@@ -68,89 +68,54 @@ if [ -z "$(get_current_config "cluster.name")" ]; then
     exit 1
 fi
 
-print_header "Wild-Cloud Services Setup"
-print_info "Installing Kubernetes cluster services (Phase 4)"
+print_header "Wild Cloud Services Setup"
+print_info "Installing Kubernetes cluster services"
 echo ""
 
-# =============================================================================
-# Cluster Services Installation
-# =============================================================================
+if ! command -v kubectl >/dev/null 2>&1; then
+    print_error "kubectl is not installed or not in PATH"
+    print_info "Please install kubectl and configure it to connect to your cluster"
+    exit 1
+fi
 
-print_header "Cluster Services Installation"
-
-print_info "This phase installs core cluster services (MetalLB, Traefik, cert-manager, etc.)"
-print_info "Each service will prompt for any required configuration during installation"
-print_warning "Make sure your cluster is running and kubectl is configured!"
+if ! kubectl cluster-info >/dev/null 2>&1; then
+    print_error "kubectl is not configured to connect to your cluster"
+    print_info "Please configure kubectl to connect to your Kubernetes cluster"
+    exit 1
+fi
 
 # Generate cluster services setup files
-print_info "Generating cluster services setup files..."
+
 wild-cluster-services-generate --force
 
+# Apply cluster services to cluster
+
 if [ "${SKIP_INSTALL}" = false ]; then
-    read -p "Do you want to install cluster services now? (y/N): " -r install_services
-    
-    if [[ $install_services =~ ^[Yy]$ ]]; then
-        print_info "Installing cluster services..."
-        wild-cluster-services-up
-        SERVICES_INSTALLED=true
-    else
-        print_info "Skipping cluster services installation"
-        print_info "You can install them later with: wild-cluster-services-up"
-        SKIP_INSTALL=true
-    fi
+    wild-cluster-services-up
+    SERVICES_INSTALLED=true
 else
     print_info "Skipping cluster services installation (--skip-install specified)"
     print_info "You can install them later with: wild-cluster-services-up"
 fi
 
-if [ "${SKIP_INSTALL}" = false ] && [ "${SERVICES_INSTALLED:-false}" = true ]; then
-    print_success "Completed: Cluster services installation"
-else
-    print_success "Completed: Cluster services configuration generated"
-fi
+# Summary output
+
+print_header "Wild Cloud Services Setup Complete!"
 echo ""
 
-# =============================================================================
-# COMPLETION
-# =============================================================================
-
-print_header "Wild-Cloud Services Setup Complete!"
-
-print_success "Cluster services setup completed!"
-echo ""
-
-print_info "Configuration files:"
-echo "  - ${WC_HOME}/config.yaml"
-echo "  - ${WC_HOME}/secrets.yaml"
-
-if [ -d "${WC_HOME}/setup/cluster" ]; then
-    echo ""
-    print_info "Generated service configurations:"
-    echo "  - ${WC_HOME}/setup/cluster/"
-fi
-
-echo ""
-if [ "${SKIP_INSTALL}" = false ] && [ "${SERVICES_INSTALLED:-false}" = true ]; then
-    print_info "Cluster services have been installed!"
-    echo ""
+if [ "${SERVICES_INSTALLED:-false}" = true ]; then
     
-    if command -v kubectl >/dev/null 2>&1; then
-        INTERNAL_DOMAIN=$(wild-config cloud.internalDomain 2>/dev/null || echo "your-internal-domain")
-        echo "Next steps:"
-        echo "  1. Access the dashboard at: https://dashboard.${INTERNAL_DOMAIN}"
-        echo "  2. Get the dashboard token with: ./bin/dashboard-token"
-        echo ""
-        echo "To verify components, run:"
-        echo "  - kubectl get pods -n cert-manager"
-        echo "  - kubectl get pods -n externaldns"
-        echo "  - kubectl get pods -n kubernetes-dashboard"
-        echo "  - kubectl get clusterissuers"
-    else
-        echo "Next steps:"
-        echo "  1. Verify your cluster services are running"
-        echo "  2. Configure kubectl if not already done"
-        echo "  3. Access your services via the configured ingress"
-    fi
+    INTERNAL_DOMAIN=$(wild-config cloud.internalDomain 2>/dev/null || echo "your-internal-domain")
+    echo "Next steps:"
+    echo "  1. Access the dashboard at: https://dashboard.${INTERNAL_DOMAIN}"
+    echo "  2. Get the dashboard token with: wild-dashboard-token"
+    echo ""
+    echo "To verify components, run:"
+    echo "  - kubectl get pods -n cert-manager"
+    echo "  - kubectl get pods -n externaldns"
+    echo "  - kubectl get pods -n kubernetes-dashboard"
+    echo "  - kubectl get clusterissuers"
+
 else
     echo "Next steps:"
     echo "  1. Ensure your cluster is running and kubectl is configured"

@@ -72,11 +72,11 @@ else
     init_wild_env
 fi
 
-CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
+CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster-services"
 
 # Check if cluster setup directory exists
 if [ ! -d "$CLUSTER_SETUP_DIR" ]; then
-    print_error "Cluster setup directory not found: $CLUSTER_SETUP_DIR"
+    print_error "Cluster services setup directory not found: $CLUSTER_SETUP_DIR"
     print_info "Run 'wild-cluster-services-generate' first to generate setup files"
     exit 1
 fi

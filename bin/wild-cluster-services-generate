@@ -64,8 +64,8 @@ fi
 
 print_header "Cluster Services Setup Generation"
 
-SOURCE_DIR="${WC_ROOT}/setup/cluster"
-DEST_DIR="${WC_HOME}/setup/cluster"
+SOURCE_DIR="${WC_ROOT}/setup/cluster-services"
+DEST_DIR="${WC_HOME}/setup/cluster-services"
 
 # Check if source directory exists
 if [ ! -d "$SOURCE_DIR" ]; then
