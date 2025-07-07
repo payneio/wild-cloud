@@ -11,7 +11,7 @@ else
     init_wild_env
 fi
 
-CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
+CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster-services"
 NFS_DIR="${CLUSTER_SETUP_DIR}/nfs"
 
 print_header "Registering NFS server with Kubernetes cluster"

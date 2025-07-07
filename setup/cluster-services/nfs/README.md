@@ -1,13 +1,19 @@
 # NFS Setup (Optional)
 
-The infrastructure supports optional NFS (Network File System) for shared media storage across the cluster:
+The infrastructure supports optional NFS (Network File System) for shared media storage across the cluster. If your config.yaml contains the `cloud.nfs` section, the NFS server will be set up automatically.
 
 ## Host Setup
 
 First, set up the NFS server on your chosen host.
 
 ```bash
-./setup-nfs-host.sh
+./setup-nfs-host.sh <host> <media-path>
+```
+
+Example:
+
+```bash
+./setup-nfs-host.sh box-01 /srv/nfs
 ```
 
 ## Cluster Integration
@@ -18,8 +24,8 @@ Add to your `config.yaml`:
 cloud:
   nfs:
     host: box-01
-    mediaPath: /data/media
-    storageCapacity: 250Gi
+    mediaPath: /srv/nfs
+    storageCapacity: 250Gi # Max size for PersistentVolume
 ```
 
 And now you can run the nfs cluster setup:

@@ -7,8 +7,66 @@ SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Source environment variables
-source "${PROJECT_DIR}/load-env.sh"
+usage() {
+    echo "Usage: setup-nfs-host.sh [server] [media-path] [options]"
+    echo ""
+    echo "Set up NFS server on the specified host."
+    echo ""
+    echo "Examples:"
+    echo "  setup-nfs-host.sh box-01 /data/media"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help  Show this help message"
+    echo "  -e, --export-options  Set the NFS export options"
+
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -e|--export-options)
+            if [[ -z "$2" ]]; then
+                echo "Error: --export-options requires a value"
+                exit 1
+            else
+                NFS_EXPORT_OPTIONS="$2"
+            fi
+            shift 2
+            ;;
+        -*)
+            echo "Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            # First non-option argument is server
+            if [[ -z "$NFS_HOST" ]]; then
+                export NFS_HOST="$1"
+            # Second non-option argument is media path
+            elif [[ -z "$NFS_MEDIA_PATH" ]]; then
+                export NFS_MEDIA_PATH="$1"
+            else
+                echo "Too many arguments"
+                usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Initialize Wild Cloud environment
+if [ -z "${WC_ROOT}" ]; then
+    print "WC_ROOT is not set."
+    exit 1
+else
+    source "${WC_ROOT}/scripts/common.sh"
+    init_wild_env
+fi
 
 echo "Setting up NFS server on this host..."
 
