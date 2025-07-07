@@ -11,7 +11,7 @@ else
     init_wild_env
 fi
 
-CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
+CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster-services"
 EXTERNALDNS_DIR="${CLUSTER_SETUP_DIR}/externaldns"
 
 print_header "Setting up ExternalDNS"

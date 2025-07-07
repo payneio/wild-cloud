@@ -11,7 +11,7 @@ else
     init_wild_env
 fi
 
-CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
+CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster-services"
 UTILS_DIR="${CLUSTER_SETUP_DIR}/utils"
 
 echo "Setting up cluster utilities..."

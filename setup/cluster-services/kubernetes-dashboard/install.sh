@@ -11,7 +11,7 @@ else
     init_wild_env
 fi
 
-CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster"
+CLUSTER_SETUP_DIR="${WC_HOME}/setup/cluster-services"
 KUBERNETES_DASHBOARD_DIR="${CLUSTER_SETUP_DIR}/kubernetes-dashboard"
 
 print_header "Setting up Kubernetes Dashboard"
