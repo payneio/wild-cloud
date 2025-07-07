@@ -210,7 +210,7 @@ configure_smb_sharing() {
     cat << EOF | sudo tee -a "${smb_config}"
 
 [${share_name}]
-    comment = Media files for Jellyfin
+    comment = Media files for Wild Cloud
     path = ${NFS_MEDIA_PATH}
     browseable = yes
     read only = no

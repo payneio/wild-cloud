@@ -9,4 +9,4 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      storage: {{ (ds "config").apps.postgres.storage | default "10Gi" }}
+      storage: {{ .apps.postgres.storage | default "10Gi" }}

@@ -54,9 +54,30 @@ else
     init_wild_env
 fi
 
-CACHE_APP_DIR=".wildcloud/cache/apps/${APP_NAME}"
+CONFIG_FILE="${WC_HOME}/config.yaml"
+if [ ! -f "${CONFIG_FILE}" ]; then
+    echo "Creating config file at ${CONFIG_FILE}"
+    echo "# Wild Cloud Configuration" > "${CONFIG_FILE}"
+    echo "# This file contains app configurations and should be committed to git" >> "${CONFIG_FILE}"
+    echo "" >> "${CONFIG_FILE}"
+fi
+
+SECRETS_FILE="${WC_HOME}/secrets.yaml"
+if [ ! -f "${SECRETS_FILE}" ]; then
+    echo "Creating secrets file at ${SECRETS_FILE}"
+    echo "# Wild Cloud Secrets Configuration" > "${SECRETS_FILE}"
+    echo "# This file contains sensitive data and should NOT be committed to git" >> "${SECRETS_FILE}"
+    echo "# Add this file to your .gitignore" >> "${SECRETS_FILE}"
+    echo "" >> "${SECRETS_FILE}"
+fi
 
 # Check if app is cached, if not fetch it first
+CACHE_APP_DIR="${WC_HOME}/.wildcloud/cache/apps/${APP_NAME}"
+if [ ! -d "${CACHE_APP_DIR}" ]; then
+    echo "Cache directory for app '${APP_NAME}' not found at ${CACHE_APP_DIR}"
+    echo "Please fetch the app first using 'wild-app-fetch ${APP_NAME}'"
+    exit 1
+fi
 if [ ! -d "${CACHE_APP_DIR}" ]; then
     echo "App '${APP_NAME}' not found in cache, fetching..."
     if [ "${UPDATE}" = true ]; then
@@ -66,9 +87,13 @@ if [ ! -d "${CACHE_APP_DIR}" ]; then
     fi
 fi
 
-DEST_APP_DIR="apps/${APP_NAME}"
-mkdir -p "apps"
+APPS_DIR="${WC_HOME}/apps"
+if [ ! -d "${APPS_DIR}" ]; then
+    echo "Creating apps directory at ${APPS_DIR}"
+    mkdir -p "${APPS_DIR}"
+fi
 
+DEST_APP_DIR="${WC_HOME}/apps/${APP_NAME}"
 if [ -d "${DEST_APP_DIR}" ]; then
     if [ "${UPDATE}" = true ]; then
         echo "Updating app '${APP_NAME}'"
@@ -84,6 +109,7 @@ if [ -d "${DEST_APP_DIR}" ]; then
         rm -rf "${DEST_APP_DIR}"
     fi
 fi
+mkdir -p "${DEST_APP_DIR}"
 
 echo "Pulling app '${APP_NAME}' from cache to ${DEST_APP_DIR}"
 
@@ -93,8 +119,8 @@ if [ -f "${MANIFEST_FILE}" ]; then
     echo "Merging defaultConfig from manifest.yaml into .wildcloud/config.yaml"
     
     # Check if the app section exists in config.yaml, if not create it
-    if ! yq eval ".apps.${APP_NAME}" .wildcloud/config.yaml >/dev/null 2>&1; then
-        yq eval ".apps.${APP_NAME} = {}" -i .wildcloud/config.yaml
+    if ! yq eval ".apps.${APP_NAME}" "${CONFIG_FILE}" >/dev/null 2>&1; then
+        yq eval ".apps.${APP_NAME} = {}" -i "${CONFIG_FILE}"
     fi
     
     # Extract defaultConfig from manifest.yaml and merge into config.yaml
@@ -105,15 +131,15 @@ if [ -f "${MANIFEST_FILE}" ]; then
             value=$(yq eval ".defaultConfig.${key}" "${MANIFEST_FILE}")
             
             # Check if key exists and is not null in app config
-            current_value=$(yq eval ".apps.${APP_NAME}.${key} // \"null\"" .wildcloud/config.yaml)
+            current_value=$(yq eval ".apps.${APP_NAME}.${key} // \"null\"" ${CONFIG_FILE})
             
             if [ "${current_value}" = "null" ]; then
                 if [[ "${value}" =~ ^[0-9]+$ ]] || [[ "${value}" =~ ^[0-9]+\.[0-9]+$ ]] || [ "${value}" = "true" ] || [ "${value}" = "false" ]; then
                     # Numeric, boolean values don't need quotes
-                    yq eval ".apps.${APP_NAME}.${key} = ${value}" -i .wildcloud/config.yaml
+                    yq eval ".apps.${APP_NAME}.${key} = ${value}" -i "${CONFIG_FILE}"
                 else
                     # String values need quotes
-                    yq eval ".apps.${APP_NAME}.${key} = \"${value}\"" -i .wildcloud/config.yaml
+                    yq eval ".apps.${APP_NAME}.${key} = \"${value}\"" -i "${CONFIG_FILE}"
                 fi
             fi
         done
@@ -125,32 +151,32 @@ if [ -f "${MANIFEST_FILE}" ]; then
         echo "Scaffolding required secrets for app '${APP_NAME}'"
         
         # Ensure .wildcloud/secrets.yaml exists
-        if [ ! -f ".wildcloud/secrets.yaml" ]; then
-            echo "# Wild Cloud Secrets Configuration" > .wildcloud/secrets.yaml
-            echo "# This file contains sensitive data and should NOT be committed to git" >> .wildcloud/secrets.yaml
-            echo "# Add this file to your .gitignore" >> .wildcloud/secrets.yaml
-            echo "" >> .wildcloud/secrets.yaml
+        if [ ! -f "${SECRETS_FILE}" ]; then
+            echo "# Wild Cloud Secrets Configuration" > "${SECRETS_FILE}"
+            echo "# This file contains sensitive data and should NOT be committed to git" >> "${SECRETS_FILE}"
+            echo "# Add this file to your .gitignore" >> "${SECRETS_FILE}"
+            echo "" >> "${SECRETS_FILE}"
         fi
         
         # Check if apps section exists, if not create it
-        if ! yq eval ".apps" .wildcloud/secrets.yaml >/dev/null 2>&1; then
-            yq eval ".apps = {}" -i .wildcloud/secrets.yaml
+        if ! yq eval ".apps" "${SECRETS_FILE}" >/dev/null 2>&1; then
+            yq eval ".apps = {}" -i "${SECRETS_FILE}"
         fi
         
         # Check if app section exists, if not create it
-        if ! yq eval ".apps.${APP_NAME}" .wildcloud/secrets.yaml >/dev/null 2>&1; then
-            yq eval ".apps.${APP_NAME} = {}" -i .wildcloud/secrets.yaml
+        if ! yq eval ".apps.${APP_NAME}" "${SECRETS_FILE}" >/dev/null 2>&1; then
+            yq eval ".apps.${APP_NAME} = {}" -i "${SECRETS_FILE}"
         fi
         
         # Add dummy values for each required secret if not already present
         yq eval '.requiredSecrets[]' "${MANIFEST_FILE}" | while read -r secret_path; do
-            current_value=$(yq eval ".${secret_path} // \"null\"" .wildcloud/secrets.yaml)
+            current_value=$(yq eval ".${secret_path} // \"null\"" "${SECRETS_FILE}")
             
             if [ "${current_value}" = "null" ]; then
                 echo "Adding dummy secret: ${secret_path}"
                 # Extract just the key name for the dummy value
                 secret_key=$(basename "${secret_path}")
-                yq eval ".${secret_path} = \"CHANGE_ME_${secret_key^^}\"" -i .wildcloud/secrets.yaml
+                yq eval ".${secret_path} = \"CHANGE_ME_${secret_key^^}\"" -i "${SECRETS_FILE}"
             fi
         done
         
@@ -163,26 +189,19 @@ process_file() {
     local src_file="$1"
     local dest_file="$2"
     
-    if [[ "${src_file}" == *.yaml ]] || [[ "${src_file}" == *.yml ]]; then
-        echo "Processing YAML file: ${dest_file}"
-        
-        # Build gomplate command with config context (enables .config shorthand)
-        gomplate_cmd="gomplate -c config=.wildcloud/config.yaml"
-        
-        # Add secrets context if secrets.yaml exists (enables .secrets shorthand)
-        if [ -f ".wildcloud/secrets.yaml" ]; then
-            gomplate_cmd="${gomplate_cmd} -c secrets=.wildcloud/secrets.yaml"
-        fi
-        
-        # Execute gomplate with the file
-        ${gomplate_cmd} -f "${src_file}" > "${dest_file}"
-    else
-        cp "${src_file}" "${dest_file}"
+    echo "Processing YAML file: ${dest_file}"
+    
+    # Build gomplate command with config context (enables .config shorthand)
+    gomplate_cmd="gomplate -c .=${CONFIG_FILE}"
+    
+    # Add secrets context if secrets.yaml exists (enables .secrets shorthand)
+    if [ -f "${SECRETS_FILE}" ]; then
+        gomplate_cmd="${gomplate_cmd} -c secrets=${SECRETS_FILE}"
     fi
+    
+    # Execute gomplate with the file
+    ${gomplate_cmd} -f "${src_file}" > "${dest_file}"
 }
-
-# Create destination directory
-mkdir -p "${DEST_APP_DIR}"
 
 # Copy directory structure and process files
 find "${CACHE_APP_DIR}" -type d | while read -r src_dir; do

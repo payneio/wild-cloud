@@ -14,11 +14,11 @@ spec:
         app: redis
     spec:
       containers:
-        - image: "{{ .config.apps.redis.image }}"
+        - image: "{{ .apps.redis.image }}"
           name: redis
           ports:
-            - containerPort: {{ .config.apps.redis.port }}
+            - containerPort: {{ .apps.redis.port }}
           env:
             - name: TZ
-              value: "{{ .config.apps.redis.timezone }}"
+              value: "{{ .apps.redis.timezone }}"
       restartPolicy: Always

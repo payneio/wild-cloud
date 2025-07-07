@@ -15,14 +15,14 @@ spec:
         component: machine-learning
     spec:
       containers:
-        - image: "{{ .config.apps.immich.mlImage }}"
+        - image: "{{ .apps.immich.mlImage }}"
           name: immich-machine-learning
           ports:
-            - containerPort: {{ .config.apps.immich.mlPort }}
+            - containerPort: {{ .apps.immich.mlPort }}
               protocol: TCP
           env:
             - name: TZ
-              value: "{{ .config.apps.immich.timezone }}"
+              value: "{{ .apps.immich.timezone }}"
           volumeMounts:
             - mountPath: /cache
               name: immich-cache

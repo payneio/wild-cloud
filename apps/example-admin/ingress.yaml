@@ -6,7 +6,7 @@ metadata:
   namespace: example-admin
 spec:
   rules:
-    - host: example-admin.{{ (ds "config").cloud.internalDomain }}
+    - host: example-admin.{{ .cloud.internalDomain }}
       http:
         paths:
           - path: /
@@ -18,5 +18,5 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - example-admin.{{ (ds "config").cloud.internalDomain }}
+        - example-admin.{{ .cloud.internalDomain }}
       secretName: wildcard-internal-wild-cloud-tls

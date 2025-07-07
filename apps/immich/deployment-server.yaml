@@ -20,25 +20,25 @@ spec:
         component: server
     spec:
       containers:
-        - image: "{{ .config.apps.immich.serverImage }}"
+        - image: "{{ .apps.immich.serverImage }}"
           name: immich-server
           ports:
-            - containerPort: {{ .config.apps.immich.serverPort }}
+            - containerPort: {{ .apps.immich.serverPort }}
               protocol: TCP
           env:
             - name: REDIS_HOSTNAME
-              value: "{{ .config.apps.immich.redisHostname }}"
+              value: "{{ .apps.immich.redisHostname }}"
             - name: DB_HOSTNAME
-              value: "{{ .config.apps.immich.dbHostname }}"
+              value: "{{ .apps.immich.dbHostname }}"
             - name: DB_USERNAME
-              value: "{{ .config.apps.immich.dbUsername }}"
+              value: "{{ .apps.immich.dbUsername }}"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: immich-secrets
                   key: dbPassword
             - name: TZ
-              value: "{{ .config.apps.immich.timezone }}"
+              value: "{{ .apps.immich.timezone }}"
             - name: IMMICH_WORKERS_EXCLUDE
               value: microservices
           volumeMounts:

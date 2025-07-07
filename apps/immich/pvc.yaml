@@ -9,7 +9,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .config.apps.immich.storage }}
+      storage: {{ .apps.immich.storage }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -21,4 +21,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .config.apps.immich.cacheStorage }}
+      storage: {{ .apps.immich.cacheStorage }}

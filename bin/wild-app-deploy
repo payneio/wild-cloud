@@ -52,6 +52,12 @@ else
     init_wild_env
 fi
 
+SECRETS_FILE="${WC_HOME}/secrets.yaml"
+if [ ! -f "${SECRETS_FILE}" ]; then
+    echo "Error: Secrets file '${SECRETS_FILE}' not found"
+    exit 1
+fi
+
 # Function to deploy secrets for an app
 deploy_secrets() {
     local app_name="$1"
@@ -68,12 +74,6 @@ deploy_secrets() {
         return 0
     fi
     
-    # Check if secrets.yaml exists
-    if [ ! -f ".wildcloud/secrets.yaml" ]; then
-        echo "Warning: .wildcloud/secrets.yaml not found, skipping secret deployment for ${app_name}"
-        return 0
-    fi
-    
     # Use the target namespace parameter
     local namespace="${target_namespace}"
     
@@ -82,8 +82,8 @@ deploy_secrets() {
     # Create secret data
     local secret_data=""
     while IFS= read -r secret_path; do
-        # Get the secret value using full path from .wildcloud/secrets.yaml
-        secret_value=$(yq eval ".${secret_path} // \"\"" .wildcloud/secrets.yaml)
+        # Get the secret value using full path
+        secret_value=$(yq eval ".${secret_path} // \"\"" "${SECRETS_FILE}")
         
         # Extract just the key name for the Kubernetes secret (handle dotted paths)
         secret_key="${secret_path##*.}"
@@ -94,7 +94,7 @@ deploy_secrets() {
             fi
             secret_data="${secret_data} --from-literal=${secret_key}=${secret_value}"
         else
-            echo "Error: Required secret '${secret_path}' not found in .wildcloud/secrets.yaml for app '${app_name}'"
+            echo "Error: Required secret '${secret_path}' not found in ${SECRETS_FILE} for app '${app_name}'"
             exit 1
         fi
     done < <(yq eval '.requiredSecrets[]' "${manifest_file}")
@@ -142,6 +142,14 @@ fi
 if [ -f "apps/${APP_NAME}/namespace.yaml" ]; then
     echo "Creating namespace for app: ${APP_NAME}"
     kubectl apply -f "apps/${APP_NAME}/namespace.yaml" ${DRY_RUN:-}
+fi
+
+# Copy TLS certificates to the namespace
+if [ -f "apps/${APP_NAME}/namespace.yaml" ]; then
+    NAMESPACE=$(yq eval '.metadata.name' "apps/${APP_NAME}/namespace.yaml")
+    echo "Step 3: Copying TLS certificates to namespace $NAMESPACE..."
+    wild-cluster-secret-copy cert-manager:wildcard-internal-wild-cloud-tls "$NAMESPACE" || echo "Warning: Failed to copy internal wildcard certificate"
+    wild-cluster-secret-copy cert-manager:wildcard-wild-cloud-tls "$NAMESPACE" || echo "Warning: Failed to copy external wildcard certificate"
 fi
 
 # Step 2: Deploy secrets (dependencies and main app)

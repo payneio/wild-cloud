@@ -55,11 +55,11 @@ spec:
                   name: postgres-secrets
                   key: password
             - name: DB_HOSTNAME
-              value: "{{ .config.apps.immich.dbHostname }}"
+              value: "{{ .apps.immich.dbHostname }}"
             - name: DB_DATABASE_NAME
-              value: "{{ .config.apps.immich.dbUsername }}"
+              value: "{{ .apps.immich.dbUsername }}"
             - name: DB_USERNAME
-              value: "{{ .config.apps.immich.dbUsername }}"
+              value: "{{ .apps.immich.dbUsername }}"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:

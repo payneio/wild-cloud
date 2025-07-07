@@ -4,7 +4,7 @@ kind: Ingress
 metadata:
   name: example-app
   annotations:
-    external-dns.alpha.kubernetes.io/target: {{ (ds "config").cloud.domain }}
+    external-dns.alpha.kubernetes.io/target: {{ .cloud.domain }}
     external-dns.alpha.kubernetes.io/cloudflare-proxied: false
 
     # Optional: Enable HTTPS redirection
@@ -15,7 +15,7 @@ metadata:
     # traefik.ingress.kubernetes.io/auth-secret: basic-auth
 spec:
   rules:
-    - host: example-app.{{ (ds "config").cloud.domain }}
+    - host: example-app.{{ .cloud.domain }}
       http:
         paths:
           - path: /
@@ -27,5 +27,5 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - example-app.{{ (ds "config").cloud.domain }}
+        - example-app.{{ .cloud.domain }}
       secretName: wildcard-wild-cloud-tls

@@ -2,12 +2,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis-service
+  name: redis
   labels:
     app: redis
 spec:
   ports:
-    - port: {{ .config.apps.redis.port }}
-      targetPort: {{ .config.apps.redis.port }}
+    - port: {{ .apps.redis.port }}
+      targetPort: {{ .apps.redis.port }}
   selector:
     app: redis

@@ -45,13 +45,13 @@ kubectl wait --for=condition=Ready certificate wildcard-wild-cloud -n cert-manag
 # Copying cert-manager secrets to the dashboard namespace (if available)
 echo "Copying cert-manager secrets to dashboard namespace..."
 if kubectl get secret wildcard-internal-wild-cloud-tls -n cert-manager >/dev/null 2>&1; then
-    copy-secret cert-manager:wildcard-internal-wild-cloud-tls $NAMESPACE
+    wild-cluster-secret-copy cert-manager:wildcard-internal-wild-cloud-tls $NAMESPACE
 else
     echo "Warning: wildcard-internal-wild-cloud-tls secret not yet available"
 fi
 
 if kubectl get secret wildcard-wild-cloud-tls -n cert-manager >/dev/null 2>&1; then
-    copy-secret cert-manager:wildcard-wild-cloud-tls $NAMESPACE
+    wild-cluster-secret-copy cert-manager:wildcard-wild-cloud-tls $NAMESPACE
 else
     echo "Warning: wildcard-wild-cloud-tls secret not yet available"
 fi

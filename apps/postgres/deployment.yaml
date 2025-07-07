@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: "{{ .config.apps.postgres.image }}"
+          image: "{{ .apps.postgres.image }}"
           args:
             [
               "-c",
@@ -35,11 +35,11 @@ spec:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
             - name: TZ
-              value: "{{ .config.apps.postgres.timezone }}"
+              value: "{{ .apps.postgres.timezone }}"
             - name: POSTGRES_DB
-              value: "{{ .config.apps.postgres.database }}"
+              value: "{{ .apps.postgres.database }}"
             - name: POSTGRES_USER
-              value: "{{ .config.apps.postgres.user }}"
+              value: "{{ .apps.postgres.user }}"
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:

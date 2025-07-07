@@ -9,7 +9,7 @@ metadata:
 spec:
   ports:
     - port: 3001
-      targetPort: {{ .config.apps.immich.serverPort }}
+      targetPort: {{ .apps.immich.serverPort }}
   selector:
     app: immich
     component: server
@@ -25,7 +25,7 @@ metadata:
     app: immich-machine-learning
 spec:
   ports:
-    - port: {{ .config.apps.immich.mlPort }}
+    - port: {{ .apps.immich.mlPort }}
   selector:
     app: immich
     component: machine-learning
