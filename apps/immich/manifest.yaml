@@ -17,7 +17,7 @@ defaultConfig:
   redisHostname: redis.redis.svc.cluster.local
   dbHostname: postgres.postgres.svc.cluster.local
   dbUsername: immich
-  domain: immich.example.com
+  domain: immich.{{ .cloud.domain }}
 requiredSecrets:
   - apps.immich.dbPassword
   - apps.postgres.password
