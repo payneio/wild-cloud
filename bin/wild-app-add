@@ -111,100 +111,111 @@ if [ -d "${DEST_APP_DIR}" ]; then
 fi
 mkdir -p "${DEST_APP_DIR}"
 
-echo "Pulling app '${APP_NAME}' from cache to ${DEST_APP_DIR}"
+echo "Adding app '${APP_NAME}' from cache to ${DEST_APP_DIR}"
 
-# Merge defaultConfig from manifest.yaml into .wildcloud/config.yaml
+# Step 1: Copy only manifest.yaml from cache first
 MANIFEST_FILE="${CACHE_APP_DIR}/manifest.yaml"
 if [ -f "${MANIFEST_FILE}" ]; then
+    echo "Copying manifest.yaml from cache"
+    cp "${MANIFEST_FILE}" "${DEST_APP_DIR}/manifest.yaml"
+else
+    echo "Warning: manifest.yaml not found in cache for app '${APP_NAME}'"
+    exit 1
+fi
+
+# Step 2: Add missing config and secret values based on manifest
+echo "Processing configuration and secrets from manifest.yaml"
+
+# Check if the app section exists in config.yaml, if not create it
+if ! yq eval ".apps.${APP_NAME}" "${CONFIG_FILE}" >/dev/null 2>&1; then
+    yq eval ".apps.${APP_NAME} = {}" -i "${CONFIG_FILE}"
+fi
+
+# Extract defaultConfig from manifest.yaml and merge into config.yaml
+if yq eval '.defaultConfig' "${DEST_APP_DIR}/manifest.yaml" | grep -q -v '^null$'; then
     echo "Merging defaultConfig from manifest.yaml into .wildcloud/config.yaml"
-    
-    # Check if the app section exists in config.yaml, if not create it
-    if ! yq eval ".apps.${APP_NAME}" "${CONFIG_FILE}" >/dev/null 2>&1; then
-        yq eval ".apps.${APP_NAME} = {}" -i "${CONFIG_FILE}"
-    fi
-    
-    # Extract defaultConfig from manifest.yaml and merge into config.yaml
-    if yq eval '.defaultConfig' "${MANIFEST_FILE}" | grep -q -v '^null$'; then
-        # Merge each key from defaultConfig into the app's config, only if not already set
-        yq eval '.defaultConfig | keys | .[]' "${MANIFEST_FILE}" | while read -r key; do
-            # Get the value from defaultConfig
-            value=$(yq eval ".defaultConfig.${key}" "${MANIFEST_FILE}")
-            
-            # Check if key exists and is not null in app config
-            current_value=$(yq eval ".apps.${APP_NAME}.${key} // \"null\"" ${CONFIG_FILE})
-            
-            if [ "${current_value}" = "null" ]; then
-                # Process value through gomplate if it contains template syntax
-                if [[ "${value}" == *"{{"* && "${value}" == *"}}"* ]]; then
-                    # Build gomplate command with config context
-                    gomplate_cmd="gomplate -c .=${CONFIG_FILE}"
-                    
-                    # Add secrets context if secrets.yaml exists
-                    if [ -f "${SECRETS_FILE}" ]; then
-                        gomplate_cmd="${gomplate_cmd} -c secrets=${SECRETS_FILE}"
-                    fi
-                    
-                    # Process the value through gomplate
-                    processed_value=$(echo "${value}" | ${gomplate_cmd})
-                    value="${processed_value}"
+    # Merge each key from defaultConfig into the app's config, only if not already set
+    yq eval '.defaultConfig | keys | .[]' "${DEST_APP_DIR}/manifest.yaml" | while read -r key; do
+        # Get the value from defaultConfig
+        value=$(yq eval ".defaultConfig.${key}" "${DEST_APP_DIR}/manifest.yaml")
+        
+        # Check if key exists and is not null in app config
+        current_value=$(yq eval ".apps.${APP_NAME}.${key} // \"null\"" ${CONFIG_FILE})
+        
+        if [ "${current_value}" = "null" ]; then
+            # Process value through gomplate if it contains template syntax
+            if [[ "${value}" == *"{{"* && "${value}" == *"}}"* ]]; then
+                # Build gomplate command with config context
+                gomplate_cmd="gomplate -c .=${CONFIG_FILE}"
+                
+                # Add secrets context if secrets.yaml exists
+                if [ -f "${SECRETS_FILE}" ]; then
+                    gomplate_cmd="${gomplate_cmd} -c secrets=${SECRETS_FILE}"
                 fi
                 
-                if [[ "${value}" =~ ^[0-9]+$ ]] || [[ "${value}" =~ ^[0-9]+\.[0-9]+$ ]] || [ "${value}" = "true" ] || [ "${value}" = "false" ]; then
-                    # Numeric, boolean values don't need quotes
-                    yq eval ".apps.${APP_NAME}.${key} = ${value}" -i "${CONFIG_FILE}"
-                else
-                    # String values need quotes
-                    yq eval ".apps.${APP_NAME}.${key} = \"${value}\"" -i "${CONFIG_FILE}"
-                fi
+                # Process the value through gomplate
+                processed_value=$(echo "${value}" | ${gomplate_cmd})
+                value="${processed_value}"
             fi
-        done
-        echo "Merged defaultConfig for app '${APP_NAME}'"
+            
+            if [[ "${value}" =~ ^[0-9]+$ ]] || [[ "${value}" =~ ^[0-9]+\.[0-9]+$ ]] || [ "${value}" = "true" ] || [ "${value}" = "false" ]; then
+                # Numeric, boolean values don't need quotes
+                yq eval ".apps.${APP_NAME}.${key} = ${value}" -i "${CONFIG_FILE}"
+            else
+                # String values need quotes
+                yq eval ".apps.${APP_NAME}.${key} = \"${value}\"" -i "${CONFIG_FILE}"
+            fi
+        fi
+    done
+    echo "Merged defaultConfig for app '${APP_NAME}'"
+fi
+
+# Scaffold required secrets into .wildcloud/secrets.yaml if they don't exist
+if yq eval '.requiredSecrets' "${DEST_APP_DIR}/manifest.yaml" | grep -q -v '^null$'; then
+    echo "Scaffolding required secrets for app '${APP_NAME}'"
+    
+    # Ensure .wildcloud/secrets.yaml exists
+    if [ ! -f "${SECRETS_FILE}" ]; then
+        echo "# Wild Cloud Secrets Configuration" > "${SECRETS_FILE}"
+        echo "# This file contains sensitive data and should NOT be committed to git" >> "${SECRETS_FILE}"
+        echo "# Add this file to your .gitignore" >> "${SECRETS_FILE}"
+        echo "" >> "${SECRETS_FILE}"
     fi
     
-    # Scaffold required secrets into .wildcloud/secrets.yaml if they don't exist
-    if yq eval '.requiredSecrets' "${MANIFEST_FILE}" | grep -q -v '^null$'; then
-        echo "Scaffolding required secrets for app '${APP_NAME}'"
-        
-        # Ensure .wildcloud/secrets.yaml exists
-        if [ ! -f "${SECRETS_FILE}" ]; then
-            echo "# Wild Cloud Secrets Configuration" > "${SECRETS_FILE}"
-            echo "# This file contains sensitive data and should NOT be committed to git" >> "${SECRETS_FILE}"
-            echo "# Add this file to your .gitignore" >> "${SECRETS_FILE}"
-            echo "" >> "${SECRETS_FILE}"
-        fi
-        
-        # Check if apps section exists, if not create it
-        if ! yq eval ".apps" "${SECRETS_FILE}" >/dev/null 2>&1; then
-            yq eval ".apps = {}" -i "${SECRETS_FILE}"
-        fi
-        
-        # Check if app section exists, if not create it
-        if ! yq eval ".apps.${APP_NAME}" "${SECRETS_FILE}" >/dev/null 2>&1; then
-            yq eval ".apps.${APP_NAME} = {}" -i "${SECRETS_FILE}"
-        fi
-        
-        # Add dummy values for each required secret if not already present
-        yq eval '.requiredSecrets[]' "${MANIFEST_FILE}" | while read -r secret_path; do
-            current_value=$(yq eval ".${secret_path} // \"null\"" "${SECRETS_FILE}")
-            
-            if [ "${current_value}" = "null" ]; then
-                echo "Adding dummy secret: ${secret_path}"
-                # Extract just the key name for the dummy value
-                secret_key=$(basename "${secret_path}")
-                yq eval ".${secret_path} = \"CHANGE_ME_${secret_key^^}\"" -i "${SECRETS_FILE}"
-            fi
-        done
-        
-        echo "Required secrets scaffolded for app '${APP_NAME}'"
+    # Check if apps section exists, if not create it
+    if ! yq eval ".apps" "${SECRETS_FILE}" >/dev/null 2>&1; then
+        yq eval ".apps = {}" -i "${SECRETS_FILE}"
     fi
+    
+    # Check if app section exists, if not create it
+    if ! yq eval ".apps.${APP_NAME}" "${SECRETS_FILE}" >/dev/null 2>&1; then
+        yq eval ".apps.${APP_NAME} = {}" -i "${SECRETS_FILE}"
+    fi
+    
+    # Add dummy values for each required secret if not already present
+    yq eval '.requiredSecrets[]' "${DEST_APP_DIR}/manifest.yaml" | while read -r secret_path; do
+        current_value=$(yq eval ".${secret_path} // \"null\"" "${SECRETS_FILE}")
+        
+        if [ "${current_value}" = "null" ]; then
+            echo "Adding dummy secret: ${secret_path}"
+            # Extract just the key name for the dummy value
+            secret_key=$(basename "${secret_path}")
+            yq eval ".${secret_path} = \"CHANGE_ME_${secret_key^^}\"" -i "${SECRETS_FILE}"
+        fi
+    done
+    
+    echo "Required secrets scaffolded for app '${APP_NAME}'"
 fi
+
+# Step 3: Copy and compile all other files from cache to app directory
+echo "Copying and compiling remaining files from cache"
 
 # Function to process a file with gomplate if it's a YAML file
 process_file() {
     local src_file="$1"
     local dest_file="$2"
     
-    echo "Processing YAML file: ${dest_file}"
+    echo "Processing file: ${dest_file}"
     
     # Build gomplate command with config context (enables .config shorthand)
     gomplate_cmd="gomplate -c .=${CONFIG_FILE}"
@@ -218,7 +229,7 @@ process_file() {
     ${gomplate_cmd} -f "${src_file}" > "${dest_file}"
 }
 
-# Copy directory structure and process files
+# Copy directory structure and process files (excluding manifest.yaml which was already copied)
 find "${CACHE_APP_DIR}" -type d | while read -r src_dir; do
     rel_path="${src_dir#${CACHE_APP_DIR}}"
     rel_path="${rel_path#/}"  # Remove leading slash if present
@@ -230,6 +241,12 @@ done
 find "${CACHE_APP_DIR}" -type f | while read -r src_file; do
     rel_path="${src_file#${CACHE_APP_DIR}}"
     rel_path="${rel_path#/}"  # Remove leading slash if present
+    
+    # Skip manifest.yaml since it was already copied in step 1
+    if [ "${rel_path}" = "manifest.yaml" ]; then
+        continue
+    fi
+    
     dest_file="${DEST_APP_DIR}/${rel_path}"
     
     # Ensure destination directory exists
@@ -239,4 +256,4 @@ find "${CACHE_APP_DIR}" -type f | while read -r src_file; do
     process_file "${src_file}" "${dest_file}"
 done
 
-echo "Successfully pulled app '${APP_NAME}' with template processing"
+echo "Successfully added app '${APP_NAME}' with template processing"
