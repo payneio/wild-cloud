@@ -134,6 +134,21 @@ if [ -f "${MANIFEST_FILE}" ]; then
             current_value=$(yq eval ".apps.${APP_NAME}.${key} // \"null\"" ${CONFIG_FILE})
             
             if [ "${current_value}" = "null" ]; then
+                # Process value through gomplate if it contains template syntax
+                if [[ "${value}" == *"{{"* && "${value}" == *"}}"* ]]; then
+                    # Build gomplate command with config context
+                    gomplate_cmd="gomplate -c .=${CONFIG_FILE}"
+                    
+                    # Add secrets context if secrets.yaml exists
+                    if [ -f "${SECRETS_FILE}" ]; then
+                        gomplate_cmd="${gomplate_cmd} -c secrets=${SECRETS_FILE}"
+                    fi
+                    
+                    # Process the value through gomplate
+                    processed_value=$(echo "${value}" | ${gomplate_cmd})
+                    value="${processed_value}"
+                fi
+                
                 if [[ "${value}" =~ ^[0-9]+$ ]] || [[ "${value}" =~ ^[0-9]+\.[0-9]+$ ]] || [ "${value}" = "true" ] || [ "${value}" = "false" ]; then
                     # Numeric, boolean values don't need quotes
                     yq eval ".apps.${APP_NAME}.${key} = ${value}" -i "${CONFIG_FILE}"
