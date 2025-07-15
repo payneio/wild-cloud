@@ -1,0 +1,6 @@
+.wildcloud
+secrets.yaml
+.bots/*/sessions
+backup/
+.working
+setup/cluster-nodes/generated/talosconfig

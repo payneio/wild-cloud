@@ -1,0 +1,8 @@
+operator:
+  email: test@domain.tld
+cloud:
+  baseDomain: domain.tld
+  domain: cloud.domain.tld
+  internalDomain: internal.cloud.domain.tld
+cluster:
+  name: cloud-domain-tld
