@@ -1,0 +1,23 @@
+---
+# Source: openproject/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openproject
+spec:
+  tls:
+    - hosts:
+        - "{{ .apps.openproject.domain }}"
+      secretName: "wildcard-wild-cloud-tls"
+  rules:
+    - host: "{{ .apps.openproject.domain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openproject
+                port:
+                  name: http
+...

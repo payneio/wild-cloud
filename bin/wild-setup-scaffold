@@ -51,11 +51,10 @@ done
 # Initialize Wild Cloud environment
 
 if [ -z "${WC_ROOT}" ]; then
-    print "WC_ROOT is not set."
+    echo "WC_ROOT is not set."
     exit 1
 else
     source "${WC_ROOT}/scripts/common.sh"
-    init_wild_env
 fi
 
 TEMPLATE_DIR="${WC_ROOT}/setup/home-scaffold"

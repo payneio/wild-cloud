@@ -1,0 +1,138 @@
+---
+# Source: openproject/templates/seeder-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openproject-seeder-1
+  labels:
+    component: seeder
+spec:
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        component: seeder
+    spec:            
+      securityContext:
+        fsGroup: 1000
+      volumes:        
+        - name: tmp
+          # we can't use emptyDir due to the sticky bit issue
+          # see: https://github.com/kubernetes/kubernetes/issues/110835
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                creationTimestamp: null
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: {{ .apps.openproject.tmpVolumesStorage }}
+        - name: app-tmp
+          # we can't use emptyDir due to the sticky bit / world writable issue
+          # see: https://github.com/kubernetes/kubernetes/issues/110835
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                creationTimestamp: null
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: {{ .apps.openproject.tmpVolumesStorage }}
+        - name: "data"
+          persistentVolumeClaim:
+            claimName: openproject        
+      initContainers:
+        - name: check-db-ready
+          image: "{{ .apps.postgres.image }}"
+          imagePullPolicy: Always
+          command: [
+            'sh',
+            '-c',
+            'until pg_isready -h $DATABASE_HOST -p $DATABASE_PORT -U openproject; do echo "waiting for database $DATABASE_HOST:$DATABASE_PORT"; sleep 2; done;'
+          ]
+          envFrom:
+            - configMapRef:
+                name: openproject-core
+            - configMapRef:
+                name: openproject-memcached
+          env:
+            - name: OPENPROJECT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: dbPassword
+            - name: OPENPROJECT_SEED_ADMIN_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: adminPassword
+          resources:
+            limits:
+              memory: 200Mi
+            requests:
+              memory: 200Mi
+          volumeMounts:            
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /app/tmp
+              name: app-tmp          
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      containers:
+        - name: seeder
+          image: "{{ .apps.openproject.serverImage }}"
+          imagePullPolicy: Always
+          args:
+            - bash
+            - /app/docker/prod/seeder
+          envFrom:
+            - configMapRef:
+                name: openproject-core
+            - configMapRef:
+                name: openproject-memcached
+          env:
+            - name: OPENPROJECT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: dbPassword
+            - name: OPENPROJECT_SEED_ADMIN_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: adminPassword
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              memory: 512Mi
+          volumeMounts:            
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /app/tmp
+              name: app-tmp
+            - name: "data"
+              mountPath: "/var/openproject/assets"                      
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      restartPolicy: OnFailure

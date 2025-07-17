@@ -1,0 +1,16 @@
+---
+# Source: openproject/templates/service.yaml
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: openproject
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    component: web
+...

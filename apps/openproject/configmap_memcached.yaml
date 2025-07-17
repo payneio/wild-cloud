@@ -1,0 +1,9 @@
+---
+# Source: openproject/templates/secret_memcached.yaml
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "openproject-memcached"
+data:
+  OPENPROJECT_CACHE__MEMCACHE__SERVER: "{{ .apps.openproject.memcachedHostname }}:{{ .apps.openproject.memcachedPort }}"
+...

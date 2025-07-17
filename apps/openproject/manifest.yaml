@@ -1,0 +1,32 @@
+name: openproject
+description: OpenProject is an open-source project management software that provides comprehensive features for project planning, tracking, and collaboration.
+version: 16.1.1
+icon: https://www.openproject.org/assets/images/openproject-logo.png
+requires:
+  - name: postgres
+  - name: memcached
+defaultConfig:
+  serverImage: openproject/openproject:16.1.1-slim
+  timezone: UTC
+  serverPort: 8080
+  storage: 5Gi
+  dbHostname: postgres.postgres.svc.cluster.local
+  dbUsername: openproject
+  dbName: openproject
+  memcachedHostname: memcached.memcached.svc.cluster.local
+  memcachedPort: 11211
+  domain: openproject.{{ .cloud.domain }}
+  https: true
+  hsts: true
+  seedLocale: en
+  adminUserName: OpenProject Admin
+  adminUserEmail: '{{ .operator.email }}'
+  adminPasswordReset: true
+  postgresStatementTimeout: 120s
+  tmpVolumesStorage: 2Gi
+  cacheStore: memcache
+  railsRelativeUrlRoot: ""
+requiredSecrets:
+  - apps.openproject.dbPassword
+  - apps.openproject.adminPassword
+  - apps.postgres.password

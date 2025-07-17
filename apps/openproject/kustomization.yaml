@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: openproject
+labels:
+  - includeSelectors: true
+    pairs:
+      app: openproject
+      managedBy: kustomize
+      partOf: wild-cloud
+resources:
+- namespace.yaml
+- serviceaccount.yaml
+- configmap_core.yaml
+- configmap_memcached.yaml
+- persistentvolumeclaim.yaml
+- service.yaml
+- db-init-job.yaml
+- web-deployment.yaml
+- worker-deployment.yaml
+- seeder-job.yaml
+- ingress.yaml

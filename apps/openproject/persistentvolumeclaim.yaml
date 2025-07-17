@@ -1,0 +1,12 @@
+---
+# Source: openproject/templates/persistentvolumeclaim.yaml
+apiVersion: "v1"
+kind: "PersistentVolumeClaim"
+metadata:
+  name: openproject
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: "{{ .apps.openproject.storage }}"
+...

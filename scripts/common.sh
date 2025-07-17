@@ -184,7 +184,7 @@ find_wc_home() {
 # Call this function at the beginning of scripts
 init_wild_env() {
     if [ -z "${WC_ROOT}" ]; then
-        print "Fail"
+        echo "ERROR: WC_ROOT is not set."
         exit 1
     else
     

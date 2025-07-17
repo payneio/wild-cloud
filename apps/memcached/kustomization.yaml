@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: memcached
+labels:
+  - includeSelectors: true
+    pairs:
+      app: memcached
+      managedBy: kustomize
+      partOf: wild-cloud
+resources:
+- namespace.yaml
+- deployment.yaml
+- service.yaml

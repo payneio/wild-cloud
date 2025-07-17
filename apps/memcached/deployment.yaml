@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memcached
+spec:
+  replicas: {{ .apps.memcached.replicas }}
+  selector:
+    matchLabels:
+      component: cache
+  template:
+    metadata:
+      labels:
+        component: cache
+    spec:
+      containers:
+      - name: memcached
+        image: {{ .apps.memcached.image }}
+        ports:
+        - containerPort: {{ .apps.memcached.port }}
+          name: memcached
+        args:
+        - -m
+        - {{ .apps.memcached.memoryLimit }}
+        - -c
+        - "{{ .apps.memcached.maxConnections }}"
+        - -p
+        - "{{ .apps.memcached.port }}"
+        resources:
+          requests:
+            memory: {{ .apps.memcached.resources.requests.memory }}
+            cpu: {{ .apps.memcached.resources.requests.cpu }}
+          limits:
+            memory: {{ .apps.memcached.resources.limits.memory }}
+            cpu: {{ .apps.memcached.resources.limits.cpu }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 11211
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true

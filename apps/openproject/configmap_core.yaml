@@ -1,0 +1,21 @@
+---
+# Source: openproject/templates/secret_core.yaml
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "openproject-core"
+data:
+  DATABASE_HOST: "{{ .apps.openproject.dbHostname }}"
+  DATABASE_PORT: "5432"
+  DATABASE_URL: "postgresql://{{ .apps.openproject.dbUsername }}@{{ .apps.openproject.dbHostname }}:5432/{{ .apps.openproject.dbName }}"
+  OPENPROJECT_SEED_ADMIN_USER_PASSWORD_RESET: "{{ .apps.openproject.adminPasswordReset }}"
+  OPENPROJECT_SEED_ADMIN_USER_NAME: "{{ .apps.openproject.adminUserName }}"
+  OPENPROJECT_SEED_ADMIN_USER_MAIL: "{{ .apps.openproject.adminUserEmail }}"
+  OPENPROJECT_HTTPS: "{{ .apps.openproject.https }}"
+  OPENPROJECT_SEED_LOCALE: "{{ .apps.openproject.seedLocale }}"
+  OPENPROJECT_HOST__NAME: "{{ .apps.openproject.domain }}"
+  OPENPROJECT_HSTS: "{{ .apps.openproject.hsts }}"
+  OPENPROJECT_RAILS__CACHE__STORE: "{{ .apps.openproject.cacheStore }}"
+  OPENPROJECT_RAILS__RELATIVE__URL__ROOT: "{{ .apps.openproject.railsRelativeUrlRoot }}"
+  POSTGRES_STATEMENT_TIMEOUT: "{{ .apps.openproject.postgresStatementTimeout }}"
+...

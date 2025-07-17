@@ -1,0 +1,19 @@
+name: memcached
+description: Memcached is an in-memory key-value store for small chunks of arbitrary data, commonly used as a cache layer.
+version: 1.6.32
+icon: https://memcached.org/memcached-logo.png
+requires: []
+defaultConfig:
+  image: memcached:1.6.32-alpine
+  port: 11211
+  memoryLimit: 64m
+  maxConnections: 1024
+  replicas: 1
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 100m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+requiredSecrets: []

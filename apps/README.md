@@ -6,7 +6,7 @@ This repository contains a collection of apps that can be deployed using Wild Cl
 
 ## App Structure
 
-Each subdirectory in this directory represents a Wild Cloud app. Each app directory contains a `manifest.yaml` file and other necessary Kustomize files.
+Each subdirectory in this directory represents a Wild Cloud app. Each app directory contains an "app manifest" (`manifest.yaml`), a "kustomization" (`kustomization.yaml`), and one or more "configurations" (yaml files containing definitions/configurations of Kubernetes objects/resources).
 
 ### App Manifest
 
@@ -49,15 +49,86 @@ Explanation of the fields:
 - `defaultConfig`: A set of default configuration values for the app. When an app is added using `wild-app-add`, these values will be added to the Wild Cloud `config.yaml` file.
 - `requiredSecrets`: A list of secrets that must be set in the Wild Cloud `secrets.yaml` file for the app to function properly. These secrets are typically sensitive information like database passwords or API keys. Keys with random values will be generated automatically when the app is added.
 
-### Kustomize Files
+### Kustomization
+
+Each app directory should also contain a `kustomization.yaml` file. This file defines how the app's Kubernetes resources are built and deployed. It can include references to other Kustomize files, patches, and configurations.
+
+Here is an example `kustomization.yaml` file for the "immich" app:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: immich
+labels:
+  - includeSelectors: true
+    pairs:
+      app: immich
+      managedBy: kustomize
+      partOf: wild-cloud
+resources:
+  - deployment-server.yaml
+  - deployment-machine-learning.yaml
+  - deployment-microservices.yaml
+  - ingress.yaml
+  - namespace.yaml
+  - pvc.yaml
+  - service.yaml
+  - db-init-job.yaml
+  ```
+
+Kustomization requirements:
+
+- Every Wild Cloud kustomization should include the Wild Cloud labels in its `kustomization.yaml` file. This allows the Wild Cloud to identify and manage the app correctly. The labels should be defined under the `labels` key, as shown in the example above.
+- The `app` label and `namespace` keys should the app's name/directory.
+
+#### Standard Wild Cloud Labels
+
+Wild Cloud uses a consistent labeling strategy across all apps:
+
+```yaml
+labels:
+  - includeSelectors: true
+    pairs:
+      app: myapp              # The app name (matches directory)
+      managedBy: kustomize    # Managed by Kustomize
+      partOf: wild-cloud      # Part of Wild Cloud ecosystem
+```
+
+The `includeSelectors: true` setting automatically applies these labels to all resources AND their selectors, which means:
+
+1. **Resource labels** - All resources get the standard Wild Cloud labels
+2. **Selector labels** - All selectors automatically include these labels for robust selection
+
+This allows individual resources to use simple, component-specific selectors:
+
+```yaml
+selector:
+  matchLabels:
+    component: web
+```
+
+Which Kustomize automatically expands to:
+
+```yaml
+selector:
+  matchLabels:
+    app: myapp
+    component: web
+    managedBy: kustomize
+    partOf: wild-cloud
+```
+
+### Configuration Files
 
 Wild Cloud apps use Kustomize as kustomize files are simple, transparent, and easier to manage in a Git repository. 
 
-#### Configuration (templates)
+#### Templates
 
-The only non-standard feature of Wild Cloud apps is the use of Wild Cloud configuration variables in the Kustomize files, such as `{{ .cloud.domain }}` for the domain name. This allows for dynamic configuration based on the operator's Wild Cloud configuration and secrets. All configuration variables need to exist in the operator's `config.yaml`, so they should be defined in the app's `manifest.yaml` under `defaultConfig`.
+For operators, Wild Cloud apps use standard configuration files. This makes modifying the app's configuration straightforward, as operators can customize their app files as needed. They can choose to manage modifications and updates directly on the configuration files using `git` tools, or they can use Kustomize patches or overlays. As a convenience for operators, when adding an app (using `wild-app-add`), the app's configurations will be compiled with the operator's Wild Cloud configuration and secrets. This results in standard Kustomize files being placed in the Wild Cloud home directory, which can then be modified as needed. This means the configuration files in this repository are actually templates, but they will be compiled into standard Kustomize files when the app is added to an operator's Wild Cloud home directory.
 
-When `wild-app-add` is run, the app's Kustomize files will be compiled with the operator's Wild Cloud configuration and secrets resulting in standard Kustomize files being placed in the Wild Cloud home directory. This makes modifying the app's configuration straightforward, as operators can customize their app files as needed. When changes are pulled from upstream, the operator can run `wild-app-add` again to update their local configuration and Kustomize files and then view the changes with `git status` to see what has changed.
+To reference operator configuration in the configuration files, use gomplate variables, such as `{{ .cloud.domain }}` for the domain name. All configuration variables you use need to exist in the operator's `config.yaml`, so they should be either standard Wild Cloud operator variables, or be defined in the app's `manifest.yaml` under `defaultConfig`.
+
+When `wild-app-add` is run, the app's Kustomize files will be compiled with the operator's Wild Cloud configuration and secrets resulting in standard Kustomize files being placed in the Wild Cloud home directory.
 
 #### Secrets
 
@@ -91,9 +162,6 @@ If you would like to contribute an app to the Wild Cloud, issue a pull request w
 
 ### Converting from Helm Charts
 
-
-# Converting Helm Charts to Wild Cloud Kustomize definitions
-
 Wild Cloud apps use Kustomize as kustomize files are simpler, more transparent, and easier to manage in a Git repository than Helm charts. If you have a Helm chart that you want to convert to a Wild Cloud app, the following example steps can simplify the process for you:
 
 ```bash
@@ -109,5 +177,13 @@ cd base/nginx-ingress
 kustomize create --autodetect
 ```
 
-After running these commands against your own Helm chart, you will have a Kustomize directory structure that can be used as a Wild Cloud app. All you need to do then, usually, is add a `manifest.yaml` file and replace any hardcoded values with Wild Cloud variables, such as `{{ .cloud.domain }}` for the domain name.
+After running these commands against your own Helm chart, you will have a Kustomize directory structure that can be used as a Wild Cloud app. All you need to do then, usually, is:
 
+- add an app manifest (a `manifest.yaml` file).
+- replace any hardcoded operator values with Wild Cloud operator variables, such as `{{ .cloud.domain }}` for the domain name.
+- modify how secrets are referenced in the Kustomize files (see above)
+- update labels and selectors to use the Wild Cloud standard:
+  - Replace complex Helm labels (like `app.kubernetes.io/name`, `app.kubernetes.io/instance`) with simple component labels
+  - Use `component: web`, `component: worker`, etc. in selectors and pod template labels
+  - Let Kustomize handle the common labels (`app`, `managedBy`, `partOf`) automatically
+- remove any Helm-specific labels from the Kustomize files, as Wild Cloud apps do not use Helm labels.

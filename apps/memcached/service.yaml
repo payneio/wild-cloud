@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: memcached
+spec:
+  ports:
+  - port: {{ .apps.memcached.port }}
+    targetPort: {{ .apps.memcached.port }}
+    protocol: TCP
+    name: memcached
+  selector:
+    component: cache

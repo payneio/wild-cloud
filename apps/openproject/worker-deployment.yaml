@@ -1,0 +1,151 @@
+---
+# Source: openproject/templates/worker-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openproject-worker-default
+  labels:
+    openproject/process: worker-default
+spec:
+  replicas: 1
+  strategy:
+    
+    type: Recreate
+  selector:
+    matchLabels:
+      component: worker
+  template:
+    metadata:
+      annotations:
+        
+        # annotate pods with env value checksums so changes trigger re-deployments
+        
+        checksum/env-core: f2b092f43e1c4c37ec21840d9fbca6bd40dc514094fce97e682a1ec202ba5e45
+        checksum/env-memcached: ff6b5c8eeeea9c2c34b0799a614f9d252c79257f7cc1a89f56d5ee0fd5664fd4
+        checksum/env-oidc: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+        checksum/env-s3: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+        checksum/env-environment: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+      labels:
+        component: worker
+    spec:            
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: openproject
+      volumes:        
+        - name: tmp
+          # we can't use emptyDir due to the sticky bit issue
+          # see: https://github.com/kubernetes/kubernetes/issues/110835
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                creationTimestamp: null
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: {{ .apps.openproject.tmpVolumesStorage }}
+        - name: app-tmp
+          # we can't use emptyDir due to the sticky bit / world writable issue
+          # see: https://github.com/kubernetes/kubernetes/issues/110835
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                creationTimestamp: null
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: {{ .apps.openproject.tmpVolumesStorage }}
+        - name: "data"
+          persistentVolumeClaim:
+            claimName: openproject        
+      initContainers:
+        - name: wait-for-db          
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          image: {{ .apps.openproject.serverImage }}
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: openproject-core
+            - configMapRef:
+                name: openproject-memcached
+          env:
+            - name: OPENPROJECT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: dbPassword
+            - name: OPENPROJECT_SEED_ADMIN_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: adminPassword
+          args:
+            - bash
+            - /app/docker/prod/wait-for-db
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              memory: 512Mi
+          volumeMounts:            
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /app/tmp
+              name: app-tmp
+      containers:
+        - name: "openproject"          
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          image: {{ .apps.openproject.serverImage }}
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: openproject-core
+            - configMapRef:
+                name: openproject-memcached
+          args:
+            - bash
+            - /app/docker/prod/worker
+          env:
+            
+            - name: OPENPROJECT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openproject-secrets
+                  key: dbPassword
+            - name: "OPENPROJECT_GOOD_JOB_QUEUES"
+              value: ""
+          volumeMounts:            
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /app/tmp
+              name: app-tmp
+            - name: "data"
+              mountPath: "/var/openproject/assets"            
+          resources:
+            limits:
+              cpu: "4"
+              memory: 4Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
