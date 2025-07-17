@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitea-public
+  namespace: gitea
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "{{ .apps.gitea.domain }}"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  rules:
+    - host: "{{ .apps.gitea.domain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitea-http
+                port:
+                  number: 3000
+  tls:
+    - secretName: wildcard-wild-cloud-tls
+      hosts:
+        - "{{ .apps.gitea.domain }}"

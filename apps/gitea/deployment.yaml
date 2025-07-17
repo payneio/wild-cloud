@@ -1,0 +1,176 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: gitea
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 100%
+  selector:
+    matchLabels:
+      component: web
+  template:
+    metadata:
+      labels:
+        component: web
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: init-directories
+          image: "{{ .apps.gitea.image }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/usr/sbin/init_directory_structure.sh"
+          env:
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+          volumeMounts:
+            - name: init
+              mountPath: /usr/sbin
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+          securityContext:
+            {}
+          resources:
+            limits: {}
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        - name: configure-gitea
+          image: "{{ .apps.gitea.image }}"
+          command:
+          - "/usr/sbin/configure_gitea.sh"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 1000
+          env:
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+            - name: HOME
+              value: /data/gitea/git
+            - name: GITEA_ADMIN_USERNAME
+              value: "{{ .apps.gitea.adminUser }}"
+            - name: GITEA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-secrets
+                  key: adminPassword
+            - name: GITEA_ADMIN_PASSWORD_MODE
+              value: keepUpdated
+          volumeMounts:
+            - name: init
+              mountPath: /usr/sbin
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/gitea/conf/app.ini
+              subPath: app.ini
+          resources:
+            limits: {}
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: gitea
+          image: "{{ .apps.gitea.image }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SSH_LISTEN_PORT
+              value: "2222"
+            - name: SSH_PORT
+              value: "{{ .apps.gitea.sshPort }}"
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+            - name: TMPDIR
+              value: /tmp/gitea
+            - name: HOME
+              value: /data/gitea/git
+            - name: GITEA__security__SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-secrets
+                  key: secretKey
+            - name: GITEA__security__INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-secrets
+                  key: jwtSecret
+            - name: GITEA__database__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-secrets
+                  key: dbPassword
+          ports:
+            - name: ssh
+              containerPort: 2222
+            - name: http
+              containerPort: {{ .apps.gitea.port }}
+          livenessProbe:
+            failureThreshold: 10
+            initialDelaySeconds: 200
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: http
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: http
+            timeoutSeconds: 1
+          resources:
+            {}
+          securityContext:
+            {}
+          volumeMounts:
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/gitea/conf/app.ini
+              subPath: app.ini
+      volumes:
+        - name: init
+          configMap:
+            name: gitea-config
+            defaultMode: 0o110
+        - name: config
+          configMap:
+            name: gitea-config
+        - name: temp
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitea-data

@@ -1,0 +1,26 @@
+name: gitea
+description: Gitea is a painless self-hosted Git service written in Go
+version: 1.0.0
+icon: https://github.com/go-gitea/gitea/raw/main/assets/logo.png
+requires:
+  - name: postgres
+defaultConfig:
+  image: gitea/gitea:1.22.0
+  domain: gitea.{{ .cloud.domain }}
+  port: 3000
+  sshPort: 22
+  storage: 10Gi
+  dbName: gitea
+  dbUser: gitea
+  dbHost: postgres.postgres.svc.cluster.local
+  dbPort: 5432
+  timezone: UTC
+  adminUser: admin
+  adminEmail: admin@{{ .cloud.domain }}
+  appName: Gitea
+  runMode: prod
+requiredSecrets:
+  - apps.gitea.adminPassword
+  - apps.gitea.dbPassword
+  - apps.gitea.secretKey
+  - apps.gitea.jwtSecret

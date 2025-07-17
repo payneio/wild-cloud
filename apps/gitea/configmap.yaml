@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-config
+  namespace: gitea
+data:
+  app.ini: |
+    APP_NAME = {{ .apps.gitea.appName }}
+    RUN_MODE = {{ .apps.gitea.runMode }}
+    RUN_USER = git
+    
+    [security]
+    INSTALL_LOCK   = true
+    
+    [database]
+    DB_TYPE  = postgres
+    HOST     = {{ .apps.gitea.dbHost }}:{{ .apps.gitea.dbPort }}
+    NAME     = {{ .apps.gitea.dbName }}
+    USER     = {{ .apps.gitea.dbUser }}
+    SSL_MODE = disable
+    
+    [server]
+    DOMAIN           = {{ .apps.gitea.domain }}
+    HTTP_PORT        = {{ .apps.gitea.port }}
+    ROOT_URL         = https://{{ .apps.gitea.domain }}/
+    DISABLE_SSH      = false
+    SSH_DOMAIN       = {{ .apps.gitea.domain }}
+    SSH_PORT         = {{ .apps.gitea.sshPort }}
+    SSH_LISTEN_PORT  = 2222
+    LFS_START_SERVER = true
+    
+    [service]
+    DISABLE_REGISTRATION              = false
+    ALLOW_ONLY_EXTERNAL_REGISTRATION = false
+    ENABLE_NOTIFY_MAIL                = false
+    ENABLE_BASIC_AUTHENTICATION       = false
+    ENABLE_REVERSE_PROXY_AUTHENTICATION = false
+    ENABLE_CAPTCHA                    = false
+    REQUIRE_SIGNIN_VIEW               = false
+    DEFAULT_KEEP_EMAIL_PRIVATE        = false
+    DEFAULT_ALLOW_CREATE_ORGANIZATION = true
+    DEFAULT_ENABLE_TIMETRACKING       = true
+    NO_REPLY_ADDRESS                  = noreply.{{ .cloud.domain }}
+    
+    [webhook]
+    ALLOWED_HOST_LIST = *
+    
+    [mailer]
+    ENABLED = false
+    
+    [picture]
+    DISABLE_GRAVATAR        = false
+    ENABLE_FEDERATED_AVATAR = true
+    
+    [log]
+    MODE      = console
+    LEVEL     = info
+    ROOT_PATH = /data/gitea/log

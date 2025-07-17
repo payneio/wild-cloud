@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitea-db-init
+  labels:
+    component: db-init
+spec:
+  template:
+    metadata:
+      labels:
+        component: db-init
+    spec:
+      containers:
+        - name: db-init
+          image: {{ .apps.postgres.image }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              PGPASSWORD=${POSTGRES_ADMIN_PASSWORD} psql -h ${DB_HOSTNAME} -U postgres <<EOF
+              DO \$\$
+              BEGIN
+                IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_USERNAME}') THEN
+                  CREATE USER ${DB_USERNAME} WITH ENCRYPTED PASSWORD '${DB_PASSWORD}';
+                ELSE
+                  ALTER USER ${DB_USERNAME} WITH ENCRYPTED PASSWORD '${DB_PASSWORD}';
+                END IF;
+              END
+              \$\$;
+
+              SELECT 'CREATE DATABASE ${DB_DATABASE_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_DATABASE_NAME}')\gexec
+              ALTER DATABASE ${DB_DATABASE_NAME} OWNER TO ${DB_USERNAME};
+              GRANT ALL PRIVILEGES ON DATABASE ${DB_DATABASE_NAME} TO ${DB_USERNAME};
+              EOF
+          env:
+            - name: POSTGRES_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: password
+            - name: DB_HOSTNAME
+              value: "{{ .apps.gitea.dbHost }}"
+            - name: DB_DATABASE_NAME
+              value: "{{ .apps.gitea.dbName }}"
+            - name: DB_USERNAME
+              value: "{{ .apps.gitea.dbUser }}"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-secrets
+                  key: dbPassword
+      restartPolicy: OnFailure
